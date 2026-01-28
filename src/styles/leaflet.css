@@ -1,0 +1,24 @@
+/* Leaflet CSS - Requerido para react-leaflet */
+@import 'leaflet/dist/leaflet.css';
+
+/* Ajustes personalizados para el mapa */
+.leaflet-container {
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+.leaflet-popup-content {
+  margin: 12px;
+  min-width: 200px;
+}
+
+/* Arreglar íconos de zoom */
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  font-size: 18px !important;
+  line-height: 26px !important;
+}

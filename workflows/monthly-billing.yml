@@ -1,0 +1,70 @@
+# GitHub Actions Workflow para Facturación Mensual Automática
+# Este workflow ejecuta la Edge Function de facturación diariamente
+
+name: Monthly Billing Automation
+
+on:
+  # Ejecutar diariamente a las 00:00 UTC (ajusta según tu zona horaria)
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Permitir ejecución manual desde GitHub Actions
+  workflow_dispatch:
+
+jobs:
+  monthly-billing:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Execute Monthly Billing Function
+        run: |
+          echo "Ejecutando facturación mensual automática..."
+          
+          # Llamar a la Edge Function de Supabase
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            ${{ secrets.SUPABASE_FUNCTION_URL }}/monthly-billing)
+          
+          http_code=$(echo "$response" | tail -n 1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "❌ Error en la facturación"
+            exit 1
+          else
+            echo "✅ Facturación ejecutada exitosamente"
+          fi
+      
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "⚠️ La facturación automática falló"
+          # Aquí puedes agregar código para enviar notificaciones
+          # Por ejemplo, enviar un email o mensaje a Slack
+      
+      - name: Send notification on success
+        if: success()
+        run: |
+          echo "✅ Facturación completada correctamente"
+          # Aquí puedes agregar código para confirmar la ejecución
+
+  # Job adicional para actualizar clientes morosos
+  update-delinquent:
+    runs-on: ubuntu-latest
+    needs: monthly-billing
+    
+    steps:
+      - name: Update Delinquent Clients
+        run: |
+          echo "Actualizando estado de clientes morosos..."
+          
+          # Este paso se ejecuta automáticamente en la Edge Function
+          # pero puedes agregar lógica adicional aquí si es necesario
+          echo "✅ Proceso completado"
