@@ -1,294 +1,208 @@
-# 🎉 Nuevas Funcionalidades Implementadas
+# NUEVAS FUNCIONALIDADES IMPLEMENTADAS
 
-## ✅ Funcionalidades Completadas
+## 1. SISTEMA DE ROLES Y GESTIÓN DE USUARIOS
 
-### 1. 🖨️ Imprimir Facturas
-- **Ubicación**: Sección de Facturación → Click en factura → Botón "Imprimir"
-- **Funcionalidad**: 
-  - Genera una factura imprimible en HTML
-  - Incluye logotipo, información del cliente, detalles de pago
-  - Diseño profesional optimizado para impresión
-- **Uso**: 
-  1. Ve a Facturación
-  2. Haz clic en cualquier factura
-  3. Presiona el botón "Imprimir"
+### Control de Acceso por Roles
 
-### 2. 💰 Generar Factura Individual
-- **Ubicación**: Detalle del Cliente → "Acciones Rápidas" → "Generar Factura"
-- **Funcionalidad**:
-  - Genera automáticamente una factura para el cliente seleccionado
-  - Calcula el monto según la tarifa mensual del plan
-  - Establece vencimiento automático el día 10 del próximo mes
-- **Uso**:
-  1. Ve a Clientes → Selecciona un cliente
-  2. En "Acciones Rápidas", haz clic en "Generar Factura"
-  3. La factura se crea automáticamente
+El sistema ahora soporta tres tipos de roles:
+- **Admin**: Acceso completo al sistema, puede crear y gestionar usuarios
+- **User**: Acceso estándar al sistema (sin gestión de usuarios)
+- **Technician**: Acceso técnico al sistema (sin gestión de usuarios)
 
-### 3. 📅 Facturación Mensual Masiva
-- **Ubicación**: Facturación → Botón "Facturas Mensuales"
-- **Funcionalidad**:
-  - Genera facturas automáticas para TODOS los clientes activos
-  - Fecha de corte: Día 10 de cada mes
-  - Solo genera facturas si no existen duplicados
-  - Muestra un resumen de cuántas facturas fueron creadas
-- **Uso**:
-  1. Ve a Facturación
-  2. Haz clic en "Facturas Mensuales" (botón morado)
-  3. Confirma la acción
-  4. Verás un mensaje con el número de facturas generadas
+### Gestión de Usuarios (Solo Admin)
 
-### 4. ⚠️ Actualización Automática de Estados
-- **Ubicación**: Facturación → Botón "Mantenimiento"
-- **Funcionalidad**:
-  - Marca facturas como "Vencidas" si pasó la fecha de vencimiento
-  - Cambia el estado de clientes a "Moroso" si tienen facturas vencidas sin pagar
-  - Ejecutable manualmente o puede programarse automáticamente
-- **Uso**:
-  1. Ve a Facturación
-  2. Haz clic en "Mantenimiento"
-  3. El sistema actualiza automáticamente:
-     - Facturas pendientes → Vencidas
-     - Clientes activos con facturas vencidas → Morosos
+**Ubicación**: `/users` en el menú lateral (solo visible para administradores)
 
-### 5. 💳 Registrar Pagos
-- **Ubicación**: Facturación → Click en factura → Botón "Registrar Pago"
-- **Funcionalidad**:
-  - Registra el pago de una factura
-  - Captura método de pago (Efectivo, Tarjeta, Transferencia, Otro)
-  - Permite agregar referencia de pago y notas
-  - Actualiza automáticamente el estado del cliente a "Activo" si no tiene más facturas pendientes
-- **Uso**:
-  1. Ve a Facturación
-  2. Haz clic en una factura pendiente o vencida
-  3. Haz clic en "Registrar Pago"
-  4. Completa los datos del pago
-  5. Confirma
+**Funcionalidades**:
+- ✅ Ver lista completa de usuarios del sistema
+- ✅ Crear nuevos usuarios con roles específicos
+- ✅ Editar información de usuarios existentes
+- ✅ Cambiar contraseñas de usuarios
+- ✅ Eliminar usuarios (excepto el propio usuario)
+- ✅ Ver último acceso de cada usuario
+- ✅ Ver estado activo/inactivo de usuarios
 
-### 6. 📍 Coordenadas GPS para Clientes
-- **Ubicación**: Formulario de Cliente → Campos "Latitud" y "Longitud"
-- **Funcionalidad**:
-  - Almacena ubicación GPS de cada cliente
-  - Permite visualización futura en el mapa de red
-  - Campos opcionales durante la creación/edición del cliente
-- **Uso**:
-  1. Al crear o editar un cliente
-  2. Llena los campos "Latitud (GPS)" y "Longitud (GPS)"
-  3. Ejemplo: Latitud: -12.046374, Longitud: -77.042793
+**Interfaz de Usuario**:
+- Badges de colores por rol:
+  - 🟣 **Admin** (Púrpura con icono de escudo)
+  - 🔵 **Técnico** (Azul con icono de llave inglesa)
+  - ⚫ **Usuario** (Gris con icono de usuario)
+- Estado activo/inactivo con badges verde/rojo
+- Información de último acceso
+- Formulario modal para crear/editar usuarios
 
-### 7. 🔐 Sistema de Autenticación
-- **Ubicación**: Pantalla de Login (automática al iniciar)
-- **Funcionalidad**:
-  - Login con email y contraseña
-  - Protección de rutas (requiere login)
-  - Muestra usuario actual en sidebar
-  - Botón de "Cerrar Sesión"
-- **Credenciales de Prueba**:
-  - Email: `admin@digitalplus.com`
-  - Contraseña: `admin123`
-- **Uso**:
-  1. Abre la aplicación
-  2. Ingresa email y contraseña
-  3. Haz clic en "Iniciar Sesión"
-  4. Para salir: Click en "Cerrar Sesión" en el sidebar
-
-### 8. 📊 Sistema de Logs de Auditoría
-- **Ubicación**: Base de datos (tabla `audit_logs`)
-- **Funcionalidad**:
-  - Registra automáticamente todas las acciones:
-    - Creación de clientes, planes, facturas
-    - Modificación de registros
-    - Eliminación de datos
-  - Captura quién realizó la acción (usuario)
-  - Timestamp de cuándo ocurrió
-  - Detalles de los cambios realizados
-- **Ver Logs**: 
-  - Los logs se guardan en Supabase
-  - Consulta SQL para ver logs:
-    ```sql
-    SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50;
-    ```
+**Restricciones de Seguridad**:
+- Solo usuarios con rol **admin** pueden acceder a `/users`
+- Los usuarios regulares y técnicos ven un mensaje de "Acceso Denegado"
+- Un admin no puede editarse ni eliminarse a sí mismo
+- El menú "Usuarios" solo aparece en el sidebar para administradores
 
 ---
 
-## 📋 Nuevos Campos en la Base de Datos
+## 2. REPORTE DIARIO
 
-### Tabla `clients`
-- ✅ `latitude` - Coordenadas GPS (latitud)
-- ✅ `longitude` - Coordenadas GPS (longitud)
-- ✅ `last_payment_date` - Fecha del último pago
-- ✅ `next_billing_date` - Fecha del próximo corte
+**Ubicación**: `/daily-report` en el menú lateral (accesible para todos)
 
-### Tabla `invoices`
-- ✅ `payment_method` - Método de pago (cash, card, transfer, other)
-- ✅ `payment_reference` - Referencia del pago
-- ✅ `paid_by` - ID del usuario que registró el pago
-- ✅ `notes` - Notas sobre el pago
-- ✅ `is_monthly_auto` - Indica si es factura mensual automática
+### Funcionalidades
 
-### Tabla `plans`
-- ✅ `expiration_date` - Fecha de vencimiento del plan
+**Estadísticas del Día**:
+- 💵 **Total Facturado**: Suma de todas las facturas del día
+- 💰 **Total Cobrado**: Suma de facturas pagadas
+- ⏳ **Por Cobrar**: Suma de facturas pendientes/vencidas
+- 👥 **Nuevos Clientes**: Cantidad de clientes registrados en el día
 
-### Nuevas Tablas
-- ✅ `users` - Tabla de usuarios del sistema
-- ✅ `audit_logs` - Logs de auditoría de todas las acciones
+**Tabla de Facturas del Día**:
+- Hora de registro
+- Nombre del cliente
+- Descripción de la factura
+- Monto
+- Estado (Pagado/Pendiente/Vencido)
 
----
+**Tabla de Nuevos Clientes del Día**:
+- Hora de registro
+- Nombre completo
+- Email
+- Teléfono
+- Plan contratado
+- Mensualidad
 
-## 🔧 Funciones SQL Disponibles
+### Características
 
-### 1. `generate_monthly_invoices(cutoff_day INT)`
-Genera facturas mensuales para todos los clientes activos.
+- 📅 **Selector de Fecha**: Permite consultar cualquier día anterior
+- 🔄 **Actualización Automática**: Los datos se cargan automáticamente al cambiar la fecha
+- 📊 **Tarjetas de Estadísticas**: Vista rápida de métricas importantes con iconos
+- 📋 **Tablas Detalladas**: Información completa de facturas y clientes
+- ⏰ **Formato de Hora**: Muestra hora exacta de registro
 
-**Uso**:
-```sql
-SELECT * FROM generate_monthly_invoices(10);
-```
+### Interfaz Visual
 
-**Resultado**: Crea facturas con vencimiento el día 10 del próximo mes.
+**Tarjetas de Estadísticas**:
+- 💙 Total Facturado (Azul)
+- 💚 Total Cobrado (Verde)
+- 💛 Por Cobrar (Amarillo)
+- 💜 Nuevos Clientes (Púrpura)
 
-### 2. `update_delinquent_clients()`
-Actualiza el estado de clientes a "moroso" si tienen facturas vencidas.
-
-**Uso**:
-```sql
-SELECT * FROM update_delinquent_clients();
-```
-
-**Resultado**: Lista de clientes actualizados a morosos.
-
-### 3. `update_overdue_invoices()`
-Marca facturas como "vencidas" si pasó su fecha de vencimiento.
-
-**Uso**:
-```sql
-SELECT * FROM update_overdue_invoices();
-```
-
-**Resultado**: Lista de facturas marcadas como vencidas.
+**Tablas**:
+- Formato limpio y profesional
+- Hover effects para mejor UX
+- Badges de estado con colores
+- Mensajes cuando no hay datos
 
 ---
 
-## 🚀 Cómo Actualizar tu Base de Datos
+## 3. MEJORAS EN EL SIDEBAR
 
-### Paso 1: Ejecutar el Script de Actualización
+**Nuevos Elementos**:
+- 📅 Reporte Diario (todos los usuarios)
+- 👥 Usuarios (solo admin)
+- Separador visual antes de opciones administrativas
+- Indicador de rol del usuario en el footer
 
-1. Ve a [Supabase Dashboard](https://supabase.com/dashboard)
-2. Abre tu proyecto
-3. Ve a **SQL Editor** → **New Query**
-4. Copia y pega el contenido del archivo `/database-schema-v2.sql`
-5. Haz clic en **"Run"**
-
-### Paso 2: Verificar las Tablas
-
-Ve a **Table Editor** y verifica que existan:
-- ✅ `users` (nueva)
-- ✅ `audit_logs` (nueva)
-- ✅ `clients` (actualizada con campos GPS)
-- ✅ `invoices` (actualizada con campos de pago)
-- ✅ `plans` (actualizada con fecha de vencimiento)
-
-### Paso 3: Probar el Sistema
-
-1. Recarga la aplicación
-2. Deberías ser redirigido a la pantalla de login
-3. Usa las credenciales: `admin@digitalplus.com` / `admin123`
-4. ¡Listo! Ahora tienes acceso a todas las nuevas funcionalidades
+**Indicador de Rol**:
+El sidebar ahora muestra el rol del usuario actual en el footer:
+- Administrador
+- Técnico  
+- Usuario
 
 ---
 
-## 📝 Flujo de Trabajo Recomendado
+## DATOS TÉCNICOS
 
-### Facturación Mensual
-```
-Día 1 del mes:
-1. Ve a Facturación
-2. Click en "Facturas Mensuales"
-3. Confirma la generación
-4. Click en "Mantenimiento" para actualizar estados
+### Archivos Creados
 
-Durante el mes:
-- Los clientes pagan → Registra el pago en cada factura
-- El sistema actualiza automáticamente el estado del cliente
+1. `/src/app/components/Users.tsx` - Gestión de usuarios
+2. `/src/app/components/DailyReport.tsx` - Reporte diario
 
-Día 10 del mes (vencimiento):
-- Click en "Mantenimiento" para marcar facturas vencidas
-- Clientes con facturas vencidas se marcan automáticamente como "Morosos"
-```
+### Archivos Modificados
 
----
+1. `/src/app/App.tsx` - Nuevas rutas añadidas
+2. `/src/app/components/Sidebar.tsx` - Nuevos enlaces y control por rol
+3. `/src/lib/auth.ts` - Ya tenía soporte para roles
 
-## 🎯 Mejoras Futuras Sugeridas
+### Base de Datos
 
-### Ya Implementadas ✅
-- [x] Imprimir facturas
-- [x] Generar factura individual
-- [x] Facturación mensual masiva
-- [x] Actualización automática de estados
-- [x] Registrar pagos
-- [x] Coordenadas GPS
-- [x] Autenticación de usuarios
-- [x] Sistema de logs de auditoría
+**Tabla users** (ya existente):
+- `id`: UUID
+- `email`: Correo único
+- `password_hash`: Contraseña hasheada
+- `full_name`: Nombre completo
+- `role`: admin | user | technician
+- `is_active`: Boolean
+- `last_login`: Timestamp
+- `created_at`: Timestamp
+- `updated_at`: Timestamp
 
-### Por Implementar (Opcional)
-- [ ] Envío automático de facturas por email
-- [ ] Notificaciones de vencimiento
-- [ ] Reportes en PDF/Excel
-- [ ] Dashboard de métricas avanzadas
-- [ ] Mapa interactivo con GPS de clientes
-- [ ] Roles de usuario (Admin, Técnico, Contador)
-- [ ] Programación automática de tareas (Cron jobs)
-- [ ] Historial de cambios por registro
+**Consultas del Reporte Diario**:
+- Facturas: filtradas por `created_at` del día seleccionado
+- Clientes: filtrados por `join_date` del día seleccionado
 
 ---
 
-## 🐛 Solución de Problemas
+## CÓMO USAR
 
-### Error: "relation does not exist"
-**Solución**: Ejecuta el script `database-schema-v2.sql` en Supabase SQL Editor.
+### Crear Usuarios (Solo Admin)
 
-### No puedo iniciar sesión
-**Solución**: 
-1. Verifica que ejecutaste el script v2 (crea la tabla `users`)
-2. Usa las credenciales: `admin@digitalplus.com` / `admin123`
-3. Si persiste, ejecuta:
-   ```sql
-   SELECT * FROM users WHERE email = 'admin@digitalplus.com';
-   ```
+1. Inicia sesión con una cuenta admin
+2. Ve a **Usuarios** en el menú lateral
+3. Click en **"Nuevo Usuario"**
+4. Completa el formulario:
+   - Nombre completo
+   - Email
+   - Contraseña
+   - Rol (User/Técnico/Admin)
+5. Click en **"Crear"**
 
-### Las facturas mensuales no se generan
-**Solución**:
-1. Verifica que los clientes tengan `monthly_fee` configurado
-2. Verifica que el estado del cliente sea "active" o "delinquent"
-3. Verifica que no existan facturas duplicadas para ese mes
+### Ver Reporte Diario
 
-### Los logs no se guardan
-**Solución**:
-1. Verifica que la tabla `audit_logs` exista
-2. Los logs se generan automáticamente por los triggers
-3. Consulta los logs:
-   ```sql
-   SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 20;
-   ```
+1. Ve a **Reporte Diario** en el menú lateral
+2. Selecciona la fecha que deseas consultar
+3. Visualiza las estadísticas y tablas
+4. Las tablas muestran:
+   - Todas las facturas creadas ese día
+   - Todos los clientes que se registraron ese día
 
 ---
 
-## 📚 Archivos Importantes
+## SEGURIDAD
 
-- `/database-schema-v2.sql` - Script SQL con todas las actualizaciones
-- `/src/lib/auth.ts` - Sistema de autenticación
-- `/src/lib/api-extended.ts` - APIs extendidas (facturas, pagos, logs)
-- `/src/app/components/Login.tsx` - Pantalla de login
-- `/src/app/components/InvoiceDetail.tsx` - Detalle y registro de pagos
-- `/NUEVAS_FUNCIONALIDADES.md` - Este archivo
+✅ **Control de Acceso**: Ruta `/users` verificada por rol
+✅ **Validación Frontend**: Mensajes de acceso denegado
+✅ **Hash de Contraseñas**: SHA-256 (mejorar con bcrypt en producción)
+✅ **Protección de Sesión**: localStorage con verificación
+
+### Notas de Producción
+
+⚠️ **Para producción, se recomienda**:
+- Usar Supabase Auth en lugar de localStorage
+- Implementar bcrypt para hashing de contraseñas
+- Agregar rate limiting
+- Implementar 2FA para administradores
+- Agregar logs de auditoría para cambios de usuarios
 
 ---
 
-## 🎓 Recursos Adicionales
+## CUENTA POR DEFECTO
 
-- **Documentación Supabase**: https://supabase.com/docs
-- **Consultas SQL**: Ver archivo `SUPABASE_SETUP.md`
-- **Despliegue**: Ver archivo `DEPLOYMENT_GUIDE.md`
+**Credenciales Admin**:
+- Email: `admin@digitalplus.com`
+- Contraseña: `admin123`
+- Rol: Administrador
+
+Con esta cuenta puedes:
+- Acceder a todas las secciones
+- Crear nuevos usuarios
+- Gestionar todo el sistema
 
 ---
 
-¡Disfruta de todas las nuevas funcionalidades! 🚀
+## PRÓXIMAS MEJORAS SUGERIDAS
+
+1. **Permisos Granulares**: Control más fino de permisos por módulo
+2. **Exportar Reportes**: PDF/Excel del reporte diario
+3. **Notificaciones**: Alertas de nuevos registros del día
+4. **Gráficas**: Visualización de tendencias diarias/semanales/mensuales
+5. **Comparativas**: Comparar días/semanas/meses
+
+---
+
+Última actualización: Viernes, 13 de Febrero de 2026

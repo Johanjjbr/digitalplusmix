@@ -5,6 +5,7 @@ import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
+import { Combobox } from '@/app/components/ui/combobox';
 import { clientsAPI } from '@/lib/api';
 
 interface TicketFormDialogProps {
@@ -107,22 +108,17 @@ export function TicketFormDialog({
 
             <div className="space-y-2">
               <Label htmlFor="clientId">Cliente</Label>
-              <Select
+              <Combobox
                 value={formData.clientId}
                 onValueChange={(value) => setFormData({ ...formData, clientId: value })}
-                disabled={!!clientId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={clients.map((client) => ({
+                  value: client.id,
+                  label: client.name,
+                }))}
+                placeholder="Seleccionar cliente (opcional)"
+                searchPlaceholder="Buscar cliente..."
+                emptyText="No se encontraron clientes"
+              />
             </div>
 
             <div className="space-y-2">

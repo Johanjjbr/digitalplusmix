@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { Printer, ArrowLeft, DollarSign, Calendar, FileText, CheckCircle, History } from 'lucide-react';
+import { Printer, ArrowLeft, DollarSign, Calendar, FileText, CheckCircle, History, Trash2 } from 'lucide-react';
 import { invoicesAPI } from '@/lib/api';
 import { invoicesExtendedAPI } from '@/lib/api-extended';
 import { paymentsAPI } from '@/lib/api-tickets-zones';
@@ -24,6 +24,16 @@ import {
   DialogFooter,
 } from '@/app/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -43,6 +53,8 @@ export function InvoiceDetail() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [paymentPreview, setPaymentPreview] = useState<any>(null);
 
   useEffect(() => {
     loadInvoice();
@@ -94,30 +106,103 @@ export function InvoiceDetail() {
     }
 
     const balance = invoice.balance || (invoice.amount - (invoice.amountPaid || 0));
-    if (amount > balance) {
-      toast.error(`El monto no puede ser mayor al balance pendiente ($${balance.toFixed(2)})`);
-      return;
-    }
 
     try {
-      await paymentsAPI.create({
-        invoiceId: id,
-        clientId: invoice.clientId,
-        amount: amount,
-        paymentMethod,
-        paymentReference,
-        notes,
-      });
+      // Si el monto es mayor al balance, usar la API con excedente
+      if (amount > balance) {
+        const result = await paymentsAPI.createWithExcess(
+          invoice.clientId,
+          id,
+          amount,
+          paymentMethod,
+          paymentReference,
+          notes
+        );
 
-      toast.success('Pago registrado exitosamente');
+        // Calcular cuánto se aplicó a cada parte
+        const amountToCurrentInvoice = Math.min(amount, balance);
+        const amountToOtherInvoices = result.paymentsCreated
+          .slice(1) // Excluir el primer pago (factura actual)
+          .reduce((sum: number, payment: any) => sum + payment.amount, 0);
+
+        // Mostrar mensaje detallado
+        let message = `Pago de $${amount.toFixed(2)} procesado exitosamente`;
+        const details: string[] = [];
+        
+        details.push(`Factura actual: $${amountToCurrentInvoice.toFixed(2)}`);
+        
+        if (result.invoicesUpdated && result.invoicesUpdated.length > 0) {
+          details.push(`${result.invoicesUpdated.length} factura(s) adicional(es): $${amountToOtherInvoices.toFixed(2)}`);
+        }
+        
+        if (result.creditBalanceAdded > 0) {
+          details.push(`Saldo a favor: $${result.creditBalanceAdded.toFixed(2)}`);
+        }
+
+        toast.success(
+          <div>
+            <p className="font-semibold">{message}</p>
+            <ul className="mt-2 text-sm space-y-1">
+              {details.map((detail, index) => (
+                <li key={index}>• {detail}</li>
+              ))}
+            </ul>
+          </div>,
+          { duration: 6000 }
+        );
+      } else {
+        // Pago normal
+        await paymentsAPI.create({
+          invoiceId: id,
+          clientId: invoice.clientId,
+          amount: amount,
+          paymentMethod,
+          paymentReference,
+          notes,
+        });
+
+        toast.success('Pago registrado exitosamente');
+      }
+
       setIsPaymentDialogOpen(false);
       setPaymentAmount('');
       setPaymentReference('');
       setNotes('');
+      setPaymentPreview(null);
       loadInvoice();
+      
+      // Recargar después de un breve delay para asegurar que la base de datos se actualizó
+      setTimeout(() => {
+        loadInvoice();
+      }, 500);
     } catch (error) {
       console.error('Error registering payment:', error);
-      toast.error('Error al registrar el pago');
+      
+      // Mostrar mensaje detallado si es error de base de datos
+      if (error instanceof Error && error.message.includes('credit_balance')) {
+        toast.error(
+          'Error: Falta actualización en la base de datos',
+          {
+            description: 'Ejecuta el script ADD_CREDIT_BALANCE.sql en Supabase. Ver archivo EJECUTAR_AHORA.txt',
+            duration: 10000,
+          }
+        );
+      } else {
+        toast.error('Error al registrar el pago');
+      }
+    }
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!id) return;
+
+    try {
+      await invoicesAPI.delete(id);
+      toast.success('Factura eliminada exitosamente');
+      navigate('/billing');
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      toast.error('Error al eliminar la factura');
     }
   };
 
@@ -178,6 +263,10 @@ export function InvoiceDetail() {
             <Printer className="w-4 h-4 mr-2" />
             Imprimir
           </Button>
+      <Button onClick={handlePrint} variant="outline">
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimir
+          </Button>
           {/* Permitir registrar pagos para facturas pendientes, vencidas o parcialmente pagadas */}
           {(invoice.status === 'pending' || invoice.status === 'overdue' || (invoice.status === 'paid' && balance > 0)) && balance > 0 && (
             <Button
@@ -191,6 +280,13 @@ export function InvoiceDetail() {
               Registrar Pago
             </Button>
           )}
+          <Button
+            onClick={() => setIsDeleteDialogOpen(true)}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Eliminar Factura
+          </Button>
         </div>
       </div>
 
@@ -305,11 +401,11 @@ export function InvoiceDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHeader className="w-[100px]">Fecha</TableHeader>
-                <TableHeader className="w-[100px]">Monto</TableHeader>
-                <TableHeader className="w-[100px]">Método</TableHeader>
-                <TableHeader className="w-[100px]">Referencia</TableHeader>
-                <TableHeader className="w-[100px]">Notas</TableHeader>
+                <TableHead className="w-[100px]">Fecha</TableHead>
+                <TableHead className="w-[100px]">Monto</TableHead>
+                <TableHead className="w-[100px]">Método</TableHead>
+                <TableHead className="w-[100px]">Referencia</TableHead>
+                <TableHead className="w-[100px]">Notas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -393,6 +489,28 @@ export function InvoiceDetail() {
                 <strong>Monto a pagar:</strong> ${Number(invoice.amount).toFixed(2)}
               </p>
             </div>
+
+            {/* Preview cuando el monto excede el balance */}
+            {parseFloat(paymentAmount) > balance && !isNaN(parseFloat(paymentAmount)) && (
+              <div className="bg-green-50 border border-green-200 p-4 rounded-lg space-y-2">
+                <p className="text-sm font-semibold text-green-800">💰 Excedente Detectado</p>
+                <p className="text-sm text-green-700">
+                  Monto ingresado: <strong>${parseFloat(paymentAmount).toFixed(2)}</strong>
+                </p>
+                <p className="text-sm text-green-700">
+                  Balance de esta factura: <strong>${balance.toFixed(2)}</strong>
+                </p>
+                <p className="text-sm text-green-700">
+                  Excedente: <strong>${(parseFloat(paymentAmount) - balance).toFixed(2)}</strong>
+                </p>
+                <div className="mt-2 pt-2 border-t border-green-200">
+                  <p className="text-xs text-green-600">
+                    ℹ️ El excedente se aplicará automáticamente a las siguientes facturas pendientes. 
+                    Si no hay más facturas, se guardará como <strong>saldo a favor</strong> para futuras facturas.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
@@ -404,6 +522,26 @@ export function InvoiceDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Factura</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar esta factura? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteInvoice} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -337,9 +337,199 @@ export const paymentsAPI = {
     return { payment: toCamelCase(data) };
   },
 
+  // Procesar pago con excedente - aplica automáticamente a siguientes facturas
+  async createWithExcess(
+    clientId: string,
+    invoiceId: string,
+    totalAmount: number,
+    paymentMethod: string,
+    paymentReference?: string,
+    notes?: string
+  ) {
+    const currentUser = authService.getCurrentUser();
+    let remainingAmount = totalAmount;
+    const paymentsCreated: any[] = [];
+    const invoicesUpdated: any[] = [];
+
+    try {
+      // 1. Obtener la factura actual
+      const { data: currentInvoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', invoiceId)
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      const currentBalance = currentInvoice.balance !== null && currentInvoice.balance !== undefined
+        ? currentInvoice.balance
+        : currentInvoice.amount - (currentInvoice.amount_paid || 0);
+
+      // 2. Aplicar pago a la factura actual
+      const amountForCurrentInvoice = Math.min(remainingAmount, currentBalance);
+      
+      if (amountForCurrentInvoice > 0) {
+        const paymentData = {
+          invoice_id: invoiceId,
+          client_id: clientId,
+          amount: amountForCurrentInvoice,
+          payment_method: paymentMethod,
+          payment_reference: paymentReference,
+          notes: notes,
+          paid_by: currentUser?.id,
+          payment_date: new Date().toISOString().split('T')[0],
+        };
+
+        const { data: payment, error: paymentError } = await supabase
+          .from('payments')
+          .insert([paymentData])
+          .select()
+          .single();
+
+        if (paymentError) throw paymentError;
+        paymentsCreated.push(payment);
+
+        await logAudit('create', 'payments', payment.id, `Pago de $${amountForCurrentInvoice}`);
+
+        remainingAmount -= amountForCurrentInvoice;
+      }
+
+      // 3. Si hay excedente, obtener siguientes facturas pendientes
+      if (remainingAmount > 0) {
+        const { data: pendingInvoices, error: pendingError } = await supabase
+          .from('invoices')
+          .select('*')
+          .eq('client_id', clientId)
+          .neq('id', invoiceId)
+          .in('status', ['pending', 'overdue'])
+          .order('due_date', { ascending: true });
+
+        if (pendingError) throw pendingError;
+
+        // 4. Aplicar excedente a las siguientes facturas
+        for (const invoice of pendingInvoices || []) {
+          if (remainingAmount <= 0) break;
+
+          const invoiceBalance = invoice.balance !== null && invoice.balance !== undefined
+            ? invoice.balance
+            : invoice.amount - (invoice.amount_paid || 0);
+
+          if (invoiceBalance <= 0) continue;
+
+          const amountForInvoice = Math.min(remainingAmount, invoiceBalance);
+
+          const paymentData = {
+            invoice_id: invoice.id,
+            client_id: clientId,
+            amount: amountForInvoice,
+            payment_method: paymentMethod,
+            payment_reference: paymentReference,
+            notes: `Pago aplicado automáticamente desde excedente`,
+            paid_by: currentUser?.id,
+            payment_date: new Date().toISOString().split('T')[0],
+          };
+
+          const { data: payment, error: paymentError } = await supabase
+            .from('payments')
+            .insert([paymentData])
+            .select()
+            .single();
+
+          if (paymentError) throw paymentError;
+          paymentsCreated.push(payment);
+          invoicesUpdated.push(invoice);
+
+          await logAudit('create', 'payments', payment.id, `Pago automático de $${amountForInvoice}`);
+
+          remainingAmount -= amountForInvoice;
+        }
+      }
+
+      // 5. Si aún queda dinero, guardarlo como saldo a favor
+      if (remainingAmount > 0) {
+        const { data: client, error: clientError } = await supabase
+          .from('clients')
+          .select('credit_balance')
+          .eq('id', clientId)
+          .single();
+
+        if (clientError) throw clientError;
+
+        const currentCreditBalance = client?.credit_balance || 0;
+        const newCreditBalance = currentCreditBalance + remainingAmount;
+
+        const { error: updateError } = await supabase
+          .from('clients')
+          .update({ credit_balance: newCreditBalance })
+          .eq('id', clientId);
+
+        if (updateError) throw updateError;
+
+        await logAudit('update', 'clients', clientId, `Saldo a favor actualizado: $${newCreditBalance}`);
+      }
+
+      return {
+        success: true,
+        paymentsCreated: toCamelCase(paymentsCreated),
+        invoicesUpdated: toCamelCase(invoicesUpdated),
+        creditBalanceAdded: remainingAmount > 0 ? remainingAmount : 0,
+        totalApplied: totalAmount,
+      };
+
+    } catch (error) {
+      console.error('Error processing payment with excess:', error);
+      
+      // Detectar error específico de columna faltante
+      if (error && typeof error === 'object' && 'code' in error && error.code === '42703') {
+        const detailedError = new Error(
+          '❌ ERROR DE BASE DE DATOS:\n\n' +
+          'La columna "credit_balance" no existe en la tabla clients.\n\n' +
+          '🔧 SOLUCIÓN RÁPIDA:\n' +
+          '1. Abre: https://supabase.com/dashboard\n' +
+          '2. Ve a SQL Editor\n' +
+          '3. Ejecuta el script: ADD_CREDIT_BALANCE.sql\n' +
+          '4. Recarga esta aplicación\n\n' +
+          '📄 Archivo con instrucciones: EJECUTAR_AHORA.txt'
+        );
+        throw detailedError;
+      }
+      
+      throw error;
+    }
+  },
+
   async delete(id: string) {
     const { error } = await supabase.from('payments').delete().eq('id', id);
     if (error) throw error;
     return { success: true };
+  },
+
+  // Obtener todos los pagos de una fecha específica
+  async getByDate(date: string) {
+    const { data, error } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        clients:client_id (
+          name,
+          email,
+          phone
+        ),
+        invoices:invoice_id (
+          description,
+          amount
+        )
+      `)
+      .eq('payment_date', date)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { payments: toCamelCase(data) };
+  },
+
+  // Obtener todos los pagos de hoy
+  async getToday() {
+    const today = new Date().toISOString().split('T')[0];
+    return this.getByDate(today);
   },
 };

@@ -4,13 +4,32 @@ Sistema de gestión completo para proveedores de TV e Internet (ISP) construido 
 
 ---
 
+## 🚨 ¿ERROR "credit_balance does not exist"?
+
+### ⚡ SOLUCIÓN RÁPIDA (2 MINUTOS):
+
+1. **Abre:** `EJECUTAR_AHORA.txt`
+2. **Copia** el código SQL completo
+3. **Ve a:** https://supabase.com/dashboard → SQL Editor
+4. **Pega** el código y presiona "Run"
+5. **Recarga** tu aplicación
+
+**Archivos de ayuda:**
+- 📄 `EJECUTAR_AHORA.txt` - Código listo para copiar/pegar ⭐ **EMPIEZA AQUÍ**
+- 📘 `RESUMEN_EJECUTIVO.md` - Resumen completo del problema y solución
+- 📗 `SOLUCION_RAPIDA.md` - Guía express
+- 📙 `PASOS_EJECUTAR_SQL.md` - Tutorial detallado paso a paso
+- 📋 `CHECKLIST_SOLUCION.md` - Lista de verificación
+
+---
+
 ## 🚀 Inicio Rápido
 
 ### 1. Configurar Base de Datos
 
 1. Ve a [Supabase Dashboard](https://supabase.com/dashboard) y abre tu proyecto
 2. Ve a **SQL Editor** → **New Query**
-3. Copia y pega el contenido del archivo `database-schema.sql`
+3. Copia y pega el contenido del archivo `database-schema-COMPLETO-FINAL.sql`
 4. Haz clic en **Run**
 
 ### 2. La App Ya Está Conectada
@@ -35,7 +54,7 @@ Sistema de gestión completo para proveedores de TV e Internet (ISP) construido 
 ### 📄 Archivos de Guías
 
 - **`CONEXION_RAPIDA.md`** ⭐ - **Empieza aquí** - Guía de 5 minutos para conectar todo
-- **`database-schema.sql`** - Script SQL para crear las tablas en Supabase
+- **`database-schema-COMPLETO-FINAL.sql`** - Script SQL para crear las tablas en Supabase
 - **`DEPLOYMENT_GUIDE.md`** - Guía completa para desplegar a producción (Vercel, Netlify, etc.)
 - **`SUPABASE_SETUP.md`** - Guía detallada sobre Supabase y consultas SQL útiles
 - **`EDGE_FUNCTIONS_SETUP.md`** - (Opcional) Si prefieres usar Edge Functions en lugar de API directa
@@ -143,7 +162,7 @@ Ver consultas SQL útiles en `SUPABASE_SETUP.md`.
 │   │   ├── api.ts              # API calls (CONECTADO DIRECTAMENTE)
 │   │   └── initData.ts         # Inicialización de datos
 │   └── styles/                  # Estilos CSS
-├── database-schema.sql          # Script SQL para Supabase
+├── database-schema-COMPLETO-FINAL.sql          # Script SQL para Supabase
 ├── CONEXION_RAPIDA.md          # 🌟 Guía de inicio rápido
 ├── DEPLOYMENT_GUIDE.md          # Guía de despliegue
 ├── SUPABASE_SETUP.md           # Guía completa de Supabase
@@ -169,7 +188,7 @@ Sigue la guía detallada en **`DEPLOYMENT_GUIDE.md`** que incluye:
 
 ### Los datos no se guardan en Supabase
 
-1. Verifica que las tablas existan (ejecuta `database-schema.sql`)
+1. Verifica que las tablas existan (ejecuta `database-schema-COMPLETO-FINAL.sql`)
 2. Abre la consola del navegador (F12) y busca errores
 3. Verifica que Supabase esté conectado en Figma Make
 

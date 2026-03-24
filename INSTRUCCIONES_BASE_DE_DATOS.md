@@ -12,6 +12,19 @@ Este script reemplaza y consolida los siguientes archivos anteriores:
 - ❌ `database-schema-v3.sql` (versión 3 - obsoleta)
 - ❌ `database-schema-v4-final.sql` (versión 4 - obsoleta)
 
+## 🚨 SOLUCIÓN RÁPIDA: Error "credit_balance does not exist"
+
+Si estás recibiendo el error sobre `credit_balance`, ejecuta este script primero:
+
+**Archivo:** `ADD_CREDIT_BALANCE.sql`
+
+1. Ve a Supabase Dashboard → SQL Editor
+2. Copia y pega TODO el contenido de `ADD_CREDIT_BALANCE.sql`
+3. Ejecuta el script (Run)
+4. Verifica que ves el mensaje: "✓ Columna credit_balance configurada correctamente"
+
+Este script agrega la columna `credit_balance` necesaria para el sistema de pagos con excedente.
+
 ## 📋 Pasos para Configurar la Base de Datos
 
 ### 1. Acceder a Supabase
@@ -58,6 +71,13 @@ Deberías ver las siguientes tablas:
 
 ## 🆕 Cambios Importantes en esta Versión
 
+### Columna `credit_balance` Agregada
+
+La tabla `clients` ahora incluye la columna `credit_balance` (saldo a favor) para soportar:
+- ✅ Pagos que exceden el monto de la factura
+- ✅ Aplicación automática del excedente a facturas pendientes
+- ✅ Saldo a favor visible en el perfil del cliente
+
 ### Columna `document_number` Agregada
 
 La tabla `clients` ahora incluye la columna `document_number` para almacenar:
@@ -92,6 +112,13 @@ El script incluye:
    - Zonas de ejemplo
 
 ## 🔧 Solución de Problemas
+
+### Error: "column credit_balance does not exist"
+
+**Solución:**
+1. Ejecuta el script `ADD_CREDIT_BALANCE.sql` en el SQL Editor de Supabase
+2. Este script agrega la columna faltante de forma segura
+3. Es idempotente (se puede ejecutar múltiples veces)
 
 ### Error: "column does not exist"
 

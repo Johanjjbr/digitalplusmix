@@ -39,7 +39,7 @@ export function Dashboard() {
       const thisYear = new Date().getFullYear();
 
       const thisMonthInvoices = invoices.filter((inv: any) => {
-        const invDate = new Date(inv.date);
+        const invDate = new Date(inv.createdAt);
         return invDate.getMonth() === thisMonth && invDate.getFullYear() === thisYear;
       });
 
@@ -51,7 +51,7 @@ export function Dashboard() {
       const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
 
       const lastMonthInvoices = invoices.filter((inv: any) => {
-        const invDate = new Date(inv.date);
+        const invDate = new Date(inv.createdAt);
         return invDate.getMonth() === lastMonth && invDate.getFullYear() === lastMonthYear;
       });
 

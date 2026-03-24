@@ -198,16 +198,16 @@ RETURNS TABLE(
 BEGIN
   -- Marcar facturas como vencidas si pasó la fecha de vencimiento
   RETURN QUERY
-  UPDATE invoices
+  UPDATE invoices inv
   SET status = 'overdue'
-  WHERE status = 'pending'
-    AND due_date < CURRENT_DATE
+  WHERE inv.status = 'pending'
+    AND inv.due_date < CURRENT_DATE
   RETURNING 
-    id AS invoice_id,
-    client_name,
-    amount,
-    due_date,
-    'Factura marcada como vencida' AS message;
+    inv.id AS invoice_id,
+    inv.client_name AS client_name,
+    inv.amount AS amount,
+    inv.due_date AS due_date,
+    'Factura marcada como vencida'::TEXT AS message;
 END;
 $$ LANGUAGE plpgsql;
 

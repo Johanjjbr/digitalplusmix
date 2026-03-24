@@ -91,16 +91,11 @@ export function Login() {
             </Button>
           </form>
 
-          {/* Información de prueba */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800 font-medium mb-2">Cuenta de Prueba:</p>
-            <p className="text-xs text-blue-700">Email: admin@digitalplus.com</p>
-            <p className="text-xs text-blue-700">Contraseña: admin123</p>
-          </div>
+
         </div>
 
         <p className="text-center text-white text-sm mt-6">
-          © 2024 Digital+ ISP. Todos los derechos reservados.
+          © 2026 Digital+ ISP. Todos los derechos reservados.
         </p>
       </div>
     </div>

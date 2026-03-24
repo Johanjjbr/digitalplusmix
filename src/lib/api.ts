@@ -122,7 +122,16 @@ export const clientsAPI = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Mejorar el mensaje de error para emails duplicados
+      if (error.code === '23505' && error.message.includes('clients_email_key')) {
+        const enhancedError = new Error('El email ya está registrado');
+        (enhancedError as any).code = error.code;
+        (enhancedError as any).originalError = error;
+        throw enhancedError;
+      }
+      throw error;
+    }
 
     // Log audit
     await logAudit('create', 'clients', data.id, data.name);
@@ -273,6 +282,8 @@ export const invoicesAPI = {
   },
 
   async create(invoice: any) {
+    console.log('=== API create() - Datos recibidos del formulario ===', invoice);
+    
     const invoiceData = {
       client_id: invoice.clientId,
       client_name: invoice.clientName,
@@ -282,6 +293,8 @@ export const invoicesAPI = {
       due_date: invoice.dueDate,
       paid_date: invoice.paidDate,
     };
+
+    console.log('=== API create() - Datos a insertar en Supabase ===', invoiceData);
 
     const { data, error } = await supabase
       .from('invoices')
@@ -312,6 +325,14 @@ export const invoicesAPI = {
     if (error) throw error;
 
     return { invoice: toCamelCase(data) };
+  },
+
+  async delete(id: string) {
+    const { error } = await supabase.from('invoices').delete().eq('id', id);
+
+    if (error) throw error;
+
+    return { success: true };
   },
 };
 

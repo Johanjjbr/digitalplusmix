@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router';
-import { LayoutDashboard, Users, PackageIcon, CreditCard, Map, Settings, LogOut, User, Ticket, FileText, MapPinned } from 'lucide-react';
+import { LayoutDashboard, Users, PackageIcon, CreditCard, Map, Settings, LogOut, User, Ticket, FileText, MapPinned, Calendar, UserCog } from 'lucide-react';
 import { authService } from '@/lib/auth';
 import { Button } from '@/app/components/ui/button';
 
@@ -8,6 +8,7 @@ export function Sidebar() {
   const currentUser = authService.getCurrentUser();
 
   const navItems = [
+    { to: '/daily-report', label: 'Reporte Diario', icon: Calendar },
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/clients', label: 'Clientes', icon: Users },
     { to: '/plans', label: 'Planes', icon: PackageIcon },
@@ -17,6 +18,11 @@ export function Sidebar() {
     { to: '/zones', label: 'Zonas', icon: MapPinned },
     { to: '/logs', label: 'Logs', icon: FileText },
     { to: '/settings', label: 'Configuración', icon: Settings },
+  ];
+
+  // Items solo para admin
+  const adminItems = [
+    { to: '/users', label: 'Usuarios', icon: UserCog },
   ];
 
   const handleLogout = () => {
@@ -48,6 +54,31 @@ export function Sidebar() {
             <span>{item.label}</span>
           </NavLink>
         ))}
+        
+        {/* Items solo para admin */}
+        {currentUser?.role === 'admin' && (
+          <>
+            <div className="my-2 px-4">
+              <div className="h-px bg-blue-800"></div>
+            </div>
+            {adminItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${
+                    isActive
+                      ? 'bg-blue-800 text-white'
+                      : 'text-blue-100 hover:bg-blue-800/50'
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
       
       <div className="p-4 border-t border-blue-800 space-y-3">
@@ -58,6 +89,9 @@ export function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{currentUser?.full_name || 'Usuario'}</p>
             <p className="text-xs text-blue-300 truncate">{currentUser?.email || 'No autenticado'}</p>
+            {currentUser?.role && (
+              <p className="text-xs text-blue-400 truncate capitalize">{currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'technician' ? 'Técnico' : 'Usuario'}</p>
+            )}
           </div>
         </div>
         <Button

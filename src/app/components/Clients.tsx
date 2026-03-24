@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Search, Edit, Trash2, Plus } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { clientsAPI, plansAPI } from '@/lib/api';
 import { Input } from '@/app/components/ui/input';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
+import * as XLSX from 'xlsx';
 import {
   Select,
   SelectContent,
@@ -85,13 +86,16 @@ export function Clients() {
     }
   };
 
-  const neighborhoods = ['all', ...Array.from(new Set(clients.map((c) => c.neighborhood)))];
+  const neighborhoods = ['all', ...Array.from(new Set(clients.map((c) => c.neighborhood).filter(Boolean)))];
 
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.ipAddress.includes(searchTerm) ||
-      client.poleNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.ipAddress || '').includes(searchTerm) ||
+      (client.poleNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.neighborhood || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.planName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.documentNumber && client.documentNumber.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesNeighborhood =
@@ -108,9 +112,17 @@ export function Clients() {
       toast.success('Cliente creado exitosamente');
       setIsAddDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating client:', error);
-      toast.error('Error al crear el cliente');
+      
+      // Manejar error de email duplicado
+      if (error?.code === '23505' || error?.message?.includes('duplicate key') || error?.message?.includes('clients_email_key')) {
+        toast.error('El email ya está registrado. Por favor usa otro email.');
+      } else if (error?.message) {
+        toast.error(`Error al crear el cliente: ${error.message}`);
+      } else {
+        toast.error('Error al crear el cliente');
+      }
     }
   };
 
@@ -145,6 +157,68 @@ export function Clients() {
     }
   };
 
+  const exportToExcel = () => {
+    // Preparar los datos para exportar con solo los campos relevantes
+    const dataToExport = filteredClients.map(client => ({
+      'Nro Cliente': client.poleNumber,
+      'Nombre': client.name,
+      'Documento': client.documentNumber || '',
+      'Email': client.email,
+      'Teléfono': client.phone,
+      'Dirección': client.address,
+      'Barrio': client.neighborhood,
+      'IP': client.ipAddress,
+      'Plan': client.planName,
+      'Cuota Mensual': client.monthlyFee,
+      'Estado': client.status === 'active' ? 'Al día' : 
+                client.status === 'delinquent' ? 'Moroso' : 'Suspendido',
+      'Estado Conexión': client.connectionStatus === 'online' ? 'En línea' : 'Fuera de línea',
+      'Zona': client.zoneName || '',
+      'Fecha de Ingreso': new Date(client.joinDate).toLocaleDateString('es-ES'),
+    }));
+
+    // Crear el libro de Excel
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Clientes');
+    
+    // Ajustar el ancho de las columnas
+    const columnWidths = [
+      { wch: 12 }, // Nro Cliente
+      { wch: 25 }, // Nombre
+      { wch: 15 }, // Documento
+      { wch: 25 }, // Email
+      { wch: 15 }, // Teléfono
+      { wch: 30 }, // Dirección
+      { wch: 20 }, // Barrio
+      { wch: 15 }, // IP
+      { wch: 20 }, // Plan
+      { wch: 15 }, // Cuota Mensual
+      { wch: 12 }, // Estado
+      { wch: 15 }, // Estado Conexión
+      { wch: 15 }, // Zona
+      { wch: 15 }, // Fecha de Ingreso
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Generar el nombre del archivo con fecha y filtros aplicados
+    const today = new Date().toISOString().split('T')[0];
+    let fileName = `clientes_${today}`;
+    
+    if (neighborhoodFilter !== 'all') {
+      fileName += `_${neighborhoodFilter}`;
+    }
+    if (statusFilter !== 'all') {
+      fileName += `_${statusFilter}`;
+    }
+    if (searchTerm) {
+      fileName += '_filtrado';
+    }
+    
+    XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    toast.success(`${filteredClients.length} cliente(s) exportado(s) a Excel`);
+  };
+
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -177,7 +251,7 @@ export function Clients() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Buscar por nombre, IP, poste o documento..."
+                placeholder="Buscar cliente (nombre, dirección, IP, poste, barrio, plan, documento)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -222,21 +296,19 @@ export function Clients() {
         <Table>
           <TableHeader>
             <TableRow className="bg-blue-50">
-              <TableHead className="font-semibold text-gray-900">Nombre del Cliente</TableHead>
-              <TableHead className="font-semibold text-gray-900">Documento</TableHead>
-              <TableHead className="font-semibold text-gray-900">Dirección IP</TableHead>
-              <TableHead className="font-semibold text-gray-900">Nro Poste</TableHead>
-              <TableHead className="font-semibold text-gray-900">Barrio</TableHead>
-              <TableHead className="font-semibold text-gray-900">Zona</TableHead>
-              <TableHead className="font-semibold text-gray-900">Plan</TableHead>
-              <TableHead className="font-semibold text-gray-900">Estado</TableHead>
-              <TableHead className="font-semibold text-gray-900 text-right">Acciones</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[80px]">Nro cliente</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[180px]">Nombre</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[200px]">Dirección</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[120px]">Documento</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[140px]">Plan</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[100px]">Estado</TableHead>
+              <TableHead className="font-semibold text-gray-900 text-right w-[100px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                   No se encontraron clientes
                 </TableCell>
               </TableRow>
@@ -245,20 +317,27 @@ export function Clients() {
                 <TableRow
                   key={client.id}
                   className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate(`/clients/${client.id}`)}
-                >
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell className="text-sm">{client.documentNumber || '-'}</TableCell>
-                  <TableCell className="font-mono text-sm">{client.ipAddress}</TableCell>
-                  <TableCell>{client.poleNumber}</TableCell>
-                  <TableCell>{client.neighborhood}</TableCell>
-                  <TableCell className="text-sm">
-                    {client.zoneName ? (
-                      <Badge variant="outline" className="text-xs">{client.zoneName}</Badge>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TableCell>
+                  onClick={() => navigate(`/clients/${client.id}`)}>
+                  <TableCell className="text-sm max-w-[80px]">
+                    <div className="truncate" title={client.poleNumber}>
+                      {client.poleNumber}
+                    </div>
+                  </TableCell> 
+                  <TableCell className="text-sm max-w-[150px]">
+                    <div className="truncate" title={client.name}>
+                      {client.name}
+                    </div>
+                  </TableCell> 
+                  <TableCell className="text-sm max-w-[150px]">
+                    <div className="truncate" title={client.address}>
+                      {client.address}
+                    </div>
+                  </TableCell>     
+                  <TableCell className="text-sm max-w-[150px]">
+                    <div className="truncate" title={client.documentNumber}>
+                      {client.documentNumber}
+                    </div>
+                  </TableCell> 
                   <TableCell>{client.planName}</TableCell>
                   <TableCell>{getStatusBadge(client.status)}</TableCell>
                   <TableCell className="text-right">
@@ -297,6 +376,13 @@ export function Clients() {
         <div>
           Mostrando {filteredClients.length} de {clients.length} clientes
         </div>
+        <Button
+          onClick={exportToExcel}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Exportar a Excel
+        </Button>
       </div>
 
       <ClientFormDialog

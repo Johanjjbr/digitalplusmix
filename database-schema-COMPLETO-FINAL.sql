@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS clients (
   longitude DECIMAL(11, 8),
   last_payment_date DATE,
   next_billing_date DATE,
+  credit_balance DECIMAL(10, 2) DEFAULT 0 NOT NULL, -- NUEVA COLUMNA: Saldo a favor del cliente
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -115,6 +116,19 @@ BEGIN
   END IF;
 END $$;
 
+-- Agregar columna credit_balance si no existe (para bases de datos existentes)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'clients' AND column_name = 'credit_balance'
+  ) THEN
+    ALTER TABLE clients ADD COLUMN credit_balance DECIMAL(10, 2) DEFAULT 0 NOT NULL;
+    -- Inicializar valores existentes
+    UPDATE clients SET credit_balance = 0 WHERE credit_balance IS NULL;
+  END IF;
+END $$;
+
 -- Índices para clients
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
 CREATE INDEX IF NOT EXISTS idx_clients_neighborhood ON clients(neighborhood);
@@ -123,6 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_clients_zone_id ON clients(zone_id);
 CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email);
 CREATE INDEX IF NOT EXISTS idx_clients_location ON clients(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_clients_document_number ON clients(document_number);
+CREATE INDEX IF NOT EXISTS idx_clients_credit_balance ON clients(credit_balance) WHERE credit_balance > 0;
 
 -- =====================================================
 -- 5. TABLA DE FACTURAS

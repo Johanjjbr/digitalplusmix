@@ -106,6 +106,7 @@ export interface Client {
   last_payment_date?: string;
   next_billing_date?: string;
   documentNumber?: string;  // En SQL es document_number
+  credit_balance?: number; // Saldo a favor del cliente
   created_at: string;
   updated_at: string;
   

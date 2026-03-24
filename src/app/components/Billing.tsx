@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { DollarSign, TrendingUp, Clock, Plus, RefreshCw, Calendar } from 'lucide-react';
+import { DollarSign, TrendingUp, Clock, Plus, RefreshCw, Calendar, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { invoicesAPI, clientsAPI } from '@/lib/api';
 import { invoicesExtendedAPI, batchOperationsAPI } from '@/lib/api-extended';
@@ -15,14 +15,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
 import { InvoiceFormDialog } from '@/app/components/InvoiceFormDialog';
+import { MonthlyInvoiceDialog } from '@/app/components/MonthlyInvoiceDialog';
 
 interface Invoice {
   id: string;
   clientId: string;
   clientName: string;
   amount: number;
-  date: string;
+  createdAt: string;
   status: 'paid' | 'pending' | 'overdue';
   description: string;
 }
@@ -31,6 +42,8 @@ interface Client {
   id: string;
   name: string;
   monthlyFee: number;
+  planName?: string;
+  status?: 'active' | 'suspended' | 'delinquent';
 }
 
 export function Billing() {
@@ -39,7 +52,10 @@ export function Billing() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isMonthlyDialogOpen, setIsMonthlyDialogOpen] = useState(false);
   const [generatingMonthly, setGeneratingMonthly] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -52,6 +68,7 @@ export function Billing() {
         invoicesAPI.getAll(),
         clientsAPI.getAll(),
       ]);
+      console.log('Facturas cargadas:', invoicesResponse.invoices);
       setInvoices(invoicesResponse.invoices || []);
       setClients(clientsResponse.clients || []);
     } catch (error) {
@@ -64,6 +81,7 @@ export function Billing() {
 
   const handleCreateInvoice = async (data: any) => {
     try {
+      console.log('Datos de factura a crear:', data);
       await invoicesAPI.create(data);
       toast.success('Factura creada exitosamente');
       setIsCreateDialogOpen(false);
@@ -74,15 +92,36 @@ export function Billing() {
     }
   };
 
-  const handleGenerateMonthlyInvoices = async () => {
-    if (!confirm('¿Generar facturas mensuales para todos los clientes activos?\n\nEsto creará facturas con vencimiento el día 10 del próximo mes.')) {
-      return;
-    }
-
+  const handleGenerateMonthlyInvoices = async (data: { clientIds: string[]; dueDate: string }) => {
     try {
       setGeneratingMonthly(true);
-      const result = await invoicesExtendedAPI.generateMonthlyInvoices();
-      toast.success(`Facturas generadas: ${result.count}`);
+      
+      // Generar facturas para los clientes seleccionados
+      const promises = data.clientIds.map(async (clientId) => {
+        const client = clients.find(c => c.id === clientId);
+        if (!client) return null;
+        
+        // Validar que el cliente tenga un monthlyFee definido
+        if (!client.monthlyFee || client.monthlyFee <= 0) {
+          console.warn(`Cliente ${client.name} no tiene un monthlyFee válido, saltando...`);
+          return null;
+        }
+        
+        return invoicesAPI.create({
+          clientId,
+          clientName: client.name,
+          amount: client.monthlyFee,
+          description: `Servicio Mensual ${client.planName ? `- Plan ${client.planName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
+          status: 'pending',
+          dueDate: data.dueDate,
+        });
+      });
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(r => r !== null).length;
+      
+      toast.success(`${successCount} factura(s) generada(s) exitosamente`);
+      setIsMonthlyDialogOpen(false);
       loadData();
     } catch (error) {
       console.error('Error generating monthly invoices:', error);
@@ -109,6 +148,21 @@ export function Billing() {
     navigate(`/billing/${invoiceId}`);
   };
 
+  const handleDeleteInvoice = async () => {
+    if (invoiceToDelete) {
+      try {
+        await invoicesAPI.delete(invoiceToDelete);
+        toast.success('Factura eliminada exitosamente');
+        setIsDeleteDialogOpen(false);
+        setInvoiceToDelete(null);
+        loadData();
+      } catch (error) {
+        console.error('Error deleting invoice:', error);
+        toast.error('Error al eliminar la factura');
+      }
+    }
+  };
+
   const calculateStats = () => {
     const totalRevenue = invoices
       .filter((inv) => inv.status === 'paid')
@@ -125,7 +179,7 @@ export function Billing() {
 
     const thisMonthRevenue = invoices
       .filter((inv) => {
-        const invDate = new Date(inv.date);
+        const invDate = new Date(inv.createdAt);
         return (
           inv.status === 'paid' &&
           invDate.getMonth() === thisMonth &&
@@ -136,7 +190,7 @@ export function Billing() {
 
     const lastMonthRevenue = invoices
       .filter((inv) => {
-        const invDate = new Date(inv.date);
+        const invDate = new Date(inv.createdAt);
         return (
           inv.status === 'paid' &&
           invDate.getMonth() === lastMonth &&
@@ -197,12 +251,12 @@ export function Billing() {
             Mantenimiento
           </Button>
           <Button
-            onClick={handleGenerateMonthlyInvoices}
+            onClick={() => setIsMonthlyDialogOpen(true)}
             disabled={generatingMonthly}
             className="bg-purple-600 hover:bg-purple-700"
           >
             <Calendar className="w-4 h-4 mr-2" />
-            {generatingMonthly ? 'Generando...' : 'Facturas Mensuales'}
+            Facturas Mensuales
           </Button>
           <Button
             onClick={() => setIsCreateDialogOpen(true)}
@@ -273,35 +327,50 @@ export function Billing() {
                 <TableHead className="font-semibold">Fecha</TableHead>
                 <TableHead className="font-semibold text-right">Monto</TableHead>
                 <TableHead className="font-semibold">Estado</TableHead>
+                <TableHead className="font-semibold text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     No hay facturas registradas
                   </TableCell>
                 </TableRow>
               ) : (
                 invoices
-                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                   .slice(0, 20)
                   .map((invoice) => (
-                    <TableRow key={invoice.id} className="hover:bg-gray-50" onClick={() => handleInvoiceClick(invoice.id)}>
-                      <TableCell className="font-mono text-sm">{invoice.id}</TableCell>
-                      <TableCell className="font-medium">{invoice.clientName}</TableCell>
-                      <TableCell>{invoice.description}</TableCell>
-                      <TableCell>
-                        {new Date(invoice.date).toLocaleDateString('es-ES', {
+                    <TableRow key={invoice.id} className="hover:bg-gray-50 cursor-pointer">
+                      <TableCell className="font-mono text-sm" onClick={() => handleInvoiceClick(invoice.id)}>{invoice.id}</TableCell>
+                      <TableCell className="font-medium" onClick={() => handleInvoiceClick(invoice.id)}>{invoice.clientName}</TableCell>
+                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>{invoice.description}</TableCell>
+                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
+                        {new Date(invoice.createdAt).toLocaleDateString('es-ES', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',
                         })}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-medium" onClick={() => handleInvoiceClick(invoice.id)}>
                         ${invoice.amount.toFixed(2)}
                       </TableCell>
-                      <TableCell>{getBadge(invoice.status)}</TableCell>
+                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>{getBadge(invoice.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInvoiceToDelete(invoice.id);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
               )}
@@ -316,6 +385,39 @@ export function Billing() {
         onSubmit={handleCreateInvoice}
         clients={clients}
       />
+
+      <MonthlyInvoiceDialog
+        open={isMonthlyDialogOpen}
+        onOpenChange={setIsMonthlyDialogOpen}
+        onSubmit={handleGenerateMonthlyInvoices}
+        clients={clients.map(c => ({
+          id: c.id,
+          name: c.name,
+          planName: c.planName || 'Sin plan',
+          monthlyFee: c.monthlyFee || 0,
+          status: c.status || 'active',
+        }))}
+      />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Factura</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar esta factura? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteInvoice}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Mail, Phone, MapPin, Edit, RefreshCw, AlertCircle, FileText, Printer, Plus, History } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Edit, RefreshCw, AlertCircle, FileText, Printer, Plus, History, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { clientsAPI, invoicesAPI, plansAPI } from '@/lib/api';
 import { invoicesExtendedAPI } from '@/lib/api-extended';
@@ -16,9 +16,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
 import { ClientFormDialog, type ClientFormData } from '@/app/components/ClientFormDialog';
 import { ChangePlanDialog } from '@/app/components/ChangePlanDialog';
 import { TicketFormDialog } from '@/app/components/TicketFormDialog';
+import { InvoiceFormDialog } from '@/app/components/InvoiceFormDialog';
 
 interface Client {
   id: string;
@@ -37,11 +48,12 @@ interface Client {
   documentNumber?: string;
   zoneId?: string;
   zoneName?: string;
+  creditBalance?: number;
 }
 
 interface Invoice {
   id: string;
-  date: string;
+  createdAt: string;
   description: string;
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
@@ -58,6 +70,10 @@ export function ClientDetail() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isChangePlanDialogOpen, setIsChangePlanDialogOpen] = useState(false);
   const [isTicketDialogOpen, setIsTicketDialogOpen] = useState(false);
+  const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleteInvoiceDialogOpen, setIsDeleteInvoiceDialogOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -119,16 +135,70 @@ export function ClientDetail() {
     }
   };
 
-  const handleGenerateInvoice = async () => {
-    if (!id) return;
-
+  const handleGenerateInvoice = async (data: any) => {
     try {
-      const result = await invoicesExtendedAPI.generateForClient(id);
-      toast.success('Factura generada exitosamente');
-      loadData(); // Reload to show the new invoice
+      console.log('Datos de factura recibidos desde el formulario:', data);
+      
+      // Si se proporciona descripción y monto personalizados, crear factura personalizada
+      // De lo contrario, generar factura del plan con sistema de saldo a favor
+      if (data.description && data.amount) {
+        // Factura personalizada - usar API básica de create
+        await invoicesAPI.create(data);
+        toast.success('Factura personalizada creada exitosamente');
+      } else {
+        // Factura del plan - usar API extendida con saldo a favor
+        const result = await invoicesExtendedAPI.generateForClient(id!);
+        
+        // Mostrar mensaje apropiado según si se aplicó saldo a favor
+        if (result.creditBalanceUsed && result.creditBalanceUsed > 0) {
+          const message = `Factura creada exitosamente`;
+          const details: string[] = [];
+          
+          details.push(`Saldo a favor aplicado: $${result.creditBalanceUsed.toFixed(2)}`);
+          
+          if (result.invoice.balance === 0) {
+            details.push(`La factura está totalmente pagada con el saldo a favor`);
+          } else {
+            details.push(`Balance pendiente: $${result.invoice.balance.toFixed(2)}`);
+          }
+          
+          if (result.newCreditBalance > 0) {
+            details.push(`Saldo a favor restante: $${result.newCreditBalance.toFixed(2)}`);
+          }
+          
+          toast.success(
+            <div>
+              <p className="font-semibold">{message}</p>
+              <ul className="mt-2 text-sm space-y-1">
+                {details.map((detail, index) => (
+                  <li key={index}>• {detail}</li>
+                ))}
+              </ul>
+            </div>,
+            { duration: 6000 }
+          );
+        } else {
+          toast.success('Factura creada exitosamente');
+        }
+      }
+      
+      setIsInvoiceDialogOpen(false);
+      loadData(); // Reload to show the new invoice and updated credit balance
     } catch (error: any) {
-      console.error('Error generating invoice:', error);
-      toast.error(error.message || 'Error al generar la factura');
+      console.error('Error creating invoice:', error);
+      
+      // Mostrar mensaje detallado si es error de base de datos
+      if (error instanceof Error && error.message.includes('credit_balance')) {
+        toast.error(
+          'Error: Falta actualización en la base de datos',
+          {
+            description: 'Ejecuta el script ADD_CREDIT_BALANCE.sql en Supabase. Ver archivo EJECUTAR_AHORA.txt',
+            duration: 10000,
+          }
+        );
+      } else {
+        toast.error(error.message || 'Error al crear la factura');
+      }
     }
   };
 
@@ -276,7 +346,7 @@ export function ClientDetail() {
             </div>
             <div class="info-row">
               <span><strong>Plan:</strong> ${client?.planName}</span>
-              <span><strong>Mensualidad:</strong> $${client?.monthlyFee.toFixed(2)}</span>
+              <span><strong>Mensualidad:</strong> $${(client?.monthlyFee || 0).toFixed(2)}</span>
             </div>
           </div>
 
@@ -294,7 +364,7 @@ export function ClientDetail() {
               ${monthlyInvoices.map(inv => `
                 <tr>
                   <td>${inv.id.slice(0, 8)}</td>
-                  <td>${new Date(inv.date).toLocaleDateString('es-ES')}</td>
+                  <td>${new Date(inv.createdAt).toLocaleDateString('es-ES')}</td>
                   <td>${inv.description}</td>
                   <td>$${inv.amount.toFixed(2)}</td>
                   <td>
@@ -344,6 +414,31 @@ export function ClientDetail() {
   const handleViewTechnicalHistory = () => {
     // Navegar a la página de tickets del cliente
     navigate(`/tickets?client=${client?.name}`);
+  };
+
+  const handleDeleteClient = async () => {
+    try {
+      await clientsAPI.delete(id!);
+      toast.success('Cliente eliminado exitosamente');
+      navigate('/clients');
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      toast.error('Error al eliminar el cliente');
+    }
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (invoiceToDelete) {
+      try {
+        await invoicesAPI.delete(invoiceToDelete);
+        toast.success('Factura eliminada exitosamente');
+        setIsDeleteInvoiceDialogOpen(false);
+        loadData();
+      } catch (error) {
+        console.error('Error deleting invoice:', error);
+        toast.error('Error al eliminar la factura');
+      }
+    }
   };
 
   if (loading) {
@@ -479,8 +574,17 @@ export function ClientDetail() {
             <div>
               <p className="text-sm text-gray-600">Plan Actual</p>
               <p className="font-semibold text-lg">{client.planName}</p>
-              <p className="text-blue-600 font-medium">${client.monthlyFee.toFixed(2)}/mes</p>
+              <p className="text-blue-600 font-medium">${(client.monthlyFee || 0).toFixed(2)}/mes</p>
             </div>
+            {client.creditBalance && client.creditBalance > 0 && (
+              <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                <p className="text-sm text-green-600 font-medium">Saldo a Favor</p>
+                <p className="text-2xl font-bold text-green-700">${client.creditBalance.toFixed(2)}</p>
+                <p className="text-xs text-green-600 mt-1">
+                  Se aplicará automáticamente a futuras facturas
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-sm text-gray-600">Estado de Conexión</p>
               <div className="mt-1">{getConnectionBadge()}</div>
@@ -530,9 +634,9 @@ export function ClientDetail() {
             <CardTitle>Acciones Rápidas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleGenerateInvoice}>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => setIsInvoiceDialogOpen(true)}>
               <FileText className="w-4 h-4 mr-2" />
-              Generar Factura
+              Crear Factura
             </Button>
             <Button variant="outline" className="w-full">
               Enviar Email
@@ -551,6 +655,14 @@ export function ClientDetail() {
             >
               <Plus className="w-4 h-4 mr-2" />
               Crear Ticket
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full text-red-600 border-red-200 hover:bg-red-50"
+              onClick={() => setIsDeleteDialogOpen(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Eliminar Cliente
             </Button>
           </CardContent>
         </Card>
@@ -591,7 +703,7 @@ export function ClientDetail() {
                   <TableRow key={record.id}>
                     <TableCell className="font-mono text-sm">{record.id}</TableCell>
                     <TableCell>
-                      {new Date(record.date).toLocaleDateString('es-ES', {
+                      {new Date(record.createdAt).toLocaleDateString('es-ES', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric',
@@ -605,6 +717,12 @@ export function ClientDetail() {
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => handlePrintInvoice(record.id)}>
                         <FileText className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        setInvoiceToDelete(record.id);
+                        setIsDeleteInvoiceDialogOpen(true);
+                      }}>
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -639,6 +757,62 @@ export function ClientDetail() {
         clientId={client.id}
         clientName={client.name}
       />
+
+      <InvoiceFormDialog
+        open={isInvoiceDialogOpen}
+        onOpenChange={setIsInvoiceDialogOpen}
+        onSubmit={handleGenerateInvoice}
+        clientId={client.id}
+        clientName={client.name}
+        monthlyFee={client.monthlyFee}
+        planName={client.planName}
+      />
+
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar a este cliente? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteClient}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={isDeleteInvoiceDialogOpen}
+        onOpenChange={setIsDeleteInvoiceDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Factura</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que quieres eliminar esta factura? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteInvoice}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
