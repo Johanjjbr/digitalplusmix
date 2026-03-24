@@ -56,6 +56,7 @@ export function Billing() {
   const [generatingMonthly, setGeneratingMonthly] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
+  const [runningMaintenance, setRunningMaintenance] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -68,7 +69,6 @@ export function Billing() {
         invoicesAPI.getAll(),
         clientsAPI.getAll(),
       ]);
-      console.log('Facturas cargadas:', invoicesResponse.invoices);
       setInvoices(invoicesResponse.invoices || []);
       setClients(clientsResponse.clients || []);
     } catch (error) {
@@ -81,7 +81,6 @@ export function Billing() {
 
   const handleCreateInvoice = async (data: any) => {
     try {
-      console.log('Datos de factura a crear:', data);
       await invoicesAPI.create(data);
       toast.success('Factura creada exitosamente');
       setIsCreateDialogOpen(false);
@@ -95,18 +94,10 @@ export function Billing() {
   const handleGenerateMonthlyInvoices = async (data: { clientIds: string[]; dueDate: string }) => {
     try {
       setGeneratingMonthly(true);
-      
-      // Generar facturas para los clientes seleccionados
       const promises = data.clientIds.map(async (clientId) => {
         const client = clients.find(c => c.id === clientId);
         if (!client) return null;
-        
-        // Validar que el cliente tenga un monthlyFee definido
-        if (!client.monthlyFee || client.monthlyFee <= 0) {
-          console.warn(`Cliente ${client.name} no tiene un monthlyFee válido, saltando...`);
-          return null;
-        }
-        
+        if (!client.monthlyFee || client.monthlyFee <= 0) return null;
         return invoicesAPI.create({
           clientId,
           clientName: client.name,
@@ -116,10 +107,8 @@ export function Billing() {
           dueDate: data.dueDate,
         });
       });
-      
       const results = await Promise.all(promises);
       const successCount = results.filter(r => r !== null).length;
-      
       toast.success(`${successCount} factura(s) generada(s) exitosamente`);
       setIsMonthlyDialogOpen(false);
       loadData();
@@ -133,14 +122,33 @@ export function Billing() {
 
   const handleRunMaintenance = async () => {
     try {
+      setRunningMaintenance(true);
       const result = await batchOperationsAPI.runMaintenance();
-      toast.success(
-        `Mantenimiento completado:\n- ${result.overdueInvoices} facturas marcadas como vencidas\n- ${result.delinquentClients} clientes marcados como morosos`
-      );
+
+      if (result.overdueInvoices === 0 && result.delinquentClients === 0) {
+        toast.success('Mantenimiento completado — todo al día, sin cambios');
+      } else {
+        toast.success(
+          <div>
+            <p className="font-semibold">Mantenimiento completado</p>
+            <ul className="mt-1 text-sm space-y-0.5">
+              {result.overdueInvoices > 0 && (
+                <li>• {result.overdueInvoices} factura(s) marcada(s) como vencida(s)</li>
+              )}
+              {result.delinquentClients > 0 && (
+                <li>• {result.delinquentClients} cliente(s) marcado(s) como moroso(s)</li>
+              )}
+            </ul>
+          </div>,
+          { duration: 5000 }
+        );
+      }
       loadData();
     } catch (error) {
       console.error('Error running maintenance:', error);
       toast.error('Error al ejecutar el mantenimiento');
+    } finally {
+      setRunningMaintenance(false);
     }
   };
 
@@ -157,7 +165,6 @@ export function Billing() {
         setInvoiceToDelete(null);
         loadData();
       } catch (error) {
-        console.error('Error deleting invoice:', error);
         toast.error('Error al eliminar la factura');
       }
     }
@@ -179,50 +186,33 @@ export function Billing() {
 
     const thisMonthRevenue = invoices
       .filter((inv) => {
-        const invDate = new Date(inv.createdAt);
-        return (
-          inv.status === 'paid' &&
-          invDate.getMonth() === thisMonth &&
-          invDate.getFullYear() === thisYear
-        );
+        const d = new Date(inv.createdAt);
+        return inv.status === 'paid' && d.getMonth() === thisMonth && d.getFullYear() === thisYear;
       })
       .reduce((sum, inv) => sum + inv.amount, 0);
 
     const lastMonthRevenue = invoices
       .filter((inv) => {
-        const invDate = new Date(inv.createdAt);
-        return (
-          inv.status === 'paid' &&
-          invDate.getMonth() === lastMonth &&
-          invDate.getFullYear() === lastMonthYear
-        );
+        const d = new Date(inv.createdAt);
+        return inv.status === 'paid' && d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
       })
       .reduce((sum, inv) => sum + inv.amount, 0);
 
-    const growth =
-      lastMonthRevenue > 0
-        ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
-        : 0;
+    const growth = lastMonthRevenue > 0
+      ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
+      : 0;
 
-    return {
-      totalRevenue,
-      pendingAmount,
-      growth,
-    };
+    return { totalRevenue, pendingAmount, growth };
   };
 
   const stats = calculateStats();
 
   const getBadge = (status: string) => {
     switch (status) {
-      case 'paid':
-        return <Badge className="bg-green-500 hover:bg-green-600">Pagado</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-500 hover:bg-yellow-600">Pendiente</Badge>;
-      case 'overdue':
-        return <Badge className="bg-red-500 hover:bg-red-600">Vencido</Badge>;
-      default:
-        return null;
+      case 'paid':    return <Badge className="bg-green-500 hover:bg-green-600">Pagado</Badge>;
+      case 'pending': return <Badge className="bg-yellow-500 hover:bg-yellow-600">Pendiente</Badge>;
+      case 'overdue': return <Badge className="bg-red-500 hover:bg-red-600">Vencido</Badge>;
+      default: return null;
     }
   };
 
@@ -244,11 +234,12 @@ export function Billing() {
         <div className="flex gap-2">
           <Button
             onClick={handleRunMaintenance}
+            disabled={runningMaintenance}
             variant="outline"
-            title="Actualizar facturas vencidas y clientes morosos"
+            title="Marcar facturas vencidas y clientes morosos"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Mantenimiento
+            <RefreshCw className={`w-4 h-4 mr-2 ${runningMaintenance ? 'animate-spin' : ''}`} />
+            {runningMaintenance ? 'Procesando...' : 'Mantenimiento'}
           </Button>
           <Button
             onClick={() => setIsMonthlyDialogOpen(true)}
@@ -258,10 +249,7 @@ export function Billing() {
             <Calendar className="w-4 h-4 mr-2" />
             Facturas Mensuales
           </Button>
-          <Button
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
+          <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="w-4 h-4 mr-2" />
             Crear Factura
           </Button>
@@ -271,52 +259,37 @@ export function Billing() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Ingresos Totales
-            </CardTitle>
-            <div className="p-2 rounded-lg bg-green-100">
-              <DollarSign className="w-5 h-5 text-green-600" />
-            </div>
+            <CardTitle className="text-sm font-medium text-gray-600">Ingresos Totales</CardTitle>
+            <div className="p-2 rounded-lg bg-green-100"><DollarSign className="w-5 h-5 text-green-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">${stats.totalRevenue.toFixed(2)}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Facturas Pendientes
-            </CardTitle>
-            <div className="p-2 rounded-lg bg-yellow-100">
-              <Clock className="w-5 h-5 text-yellow-600" />
-            </div>
+            <CardTitle className="text-sm font-medium text-gray-600">Facturas Pendientes</CardTitle>
+            <div className="p-2 rounded-lg bg-yellow-100"><Clock className="w-5 h-5 text-yellow-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">${stats.pendingAmount.toFixed(2)}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Crecimiento</CardTitle>
-            <div className="p-2 rounded-lg bg-blue-100">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-            </div>
+            <div className="p-2 rounded-lg bg-blue-100"><TrendingUp className="w-5 h-5 text-blue-600" /></div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              {stats.growth > 0 ? '+' : ''}
-              {stats.growth.toFixed(1)}%
+              {stats.growth > 0 ? '+' : ''}{stats.growth.toFixed(1)}%
             </div>
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Facturas Recientes</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Facturas Recientes</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -343,20 +316,26 @@ export function Billing() {
                   .slice(0, 20)
                   .map((invoice) => (
                     <TableRow key={invoice.id} className="hover:bg-gray-50 cursor-pointer">
-                      <TableCell className="font-mono text-sm" onClick={() => handleInvoiceClick(invoice.id)}>{invoice.id}</TableCell>
-                      <TableCell className="font-medium" onClick={() => handleInvoiceClick(invoice.id)}>{invoice.clientName}</TableCell>
-                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>{invoice.description}</TableCell>
+                      <TableCell className="font-mono text-sm" onClick={() => handleInvoiceClick(invoice.id)}>
+                        {invoice.id}
+                      </TableCell>
+                      <TableCell className="font-medium" onClick={() => handleInvoiceClick(invoice.id)}>
+                        {invoice.clientName}
+                      </TableCell>
+                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
+                        {invoice.description}
+                      </TableCell>
                       <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
                         {new Date(invoice.createdAt).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
+                          year: 'numeric', month: 'short', day: 'numeric',
                         })}
                       </TableCell>
                       <TableCell className="text-right font-medium" onClick={() => handleInvoiceClick(invoice.id)}>
                         ${invoice.amount.toFixed(2)}
                       </TableCell>
-                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>{getBadge(invoice.status)}</TableCell>
+                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
+                        {getBadge(invoice.status)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button
                           size="sm"
@@ -409,10 +388,7 @@ export function Billing() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={handleDeleteInvoice}
-            >
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteInvoice}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -24,14 +24,12 @@ async function logAudit(
     ]);
   } catch (error) {
     console.error('Error logging audit:', error);
-    // Don't throw - audit logging shouldn't break the main operation
   }
 }
 
 // ==================== INVOICE EXTENSIONS ====================
 
 export const invoicesExtendedAPI = {
-  // Register payment for an invoice
   async registerPayment(
     invoiceId: string,
     paymentData: {
@@ -63,9 +61,7 @@ export const invoicesExtendedAPI = {
     return { invoice: data };
   },
 
-  // Generate invoice for a specific client
   async generateForClient(clientId: string) {
-    // Get client data
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
@@ -78,7 +74,6 @@ export const invoicesExtendedAPI = {
       throw new Error('El cliente no tiene una tarifa mensual configurada');
     }
 
-    // Calculate due date (10th of next month)
     const now = new Date();
     const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 10);
 
@@ -86,15 +81,12 @@ export const invoicesExtendedAPI = {
     let creditBalanceUsed = 0;
     let newCreditBalance = client.credit_balance || 0;
 
-    // Aplicar saldo a favor si existe
     if (newCreditBalance > 0) {
       if (newCreditBalance >= invoiceAmount) {
-        // El saldo a favor cubre toda la factura
         creditBalanceUsed = invoiceAmount;
         newCreditBalance -= invoiceAmount;
         invoiceAmount = 0;
       } else {
-        // El saldo a favor cubre parte de la factura
         creditBalanceUsed = newCreditBalance;
         invoiceAmount -= newCreditBalance;
         newCreditBalance = 0;
@@ -104,13 +96,13 @@ export const invoicesExtendedAPI = {
     const invoiceData = {
       client_id: clientId,
       client_name: client.name,
-      amount: client.monthly_fee, // Monto original
+      amount: client.monthly_fee,
       description: `Factura mensual - ${client.plan_name || 'Servicio'}${creditBalanceUsed > 0 ? ` (Saldo a favor aplicado: $${creditBalanceUsed.toFixed(2)})` : ''}`,
-      status: invoiceAmount === 0 ? 'paid' : 'pending', // Si el saldo a favor cubrió todo, marcar como pagada
+      status: invoiceAmount === 0 ? 'paid' : 'pending',
       due_date: dueDate.toISOString().split('T')[0],
-      is_monthly_auto: false, // Manual generation
-      amount_paid: creditBalanceUsed, // Registrar el monto pagado con saldo a favor
-      balance: invoiceAmount, // Balance restante
+      is_monthly_auto: false,
+      amount_paid: creditBalanceUsed,
+      balance: invoiceAmount,
     };
 
     const { data, error } = await supabase
@@ -121,7 +113,6 @@ export const invoicesExtendedAPI = {
 
     if (error) throw error;
 
-    // Actualizar el saldo a favor del cliente si se usó
     if (creditBalanceUsed > 0) {
       const { error: updateError } = await supabase
         .from('clients')
@@ -130,7 +121,6 @@ export const invoicesExtendedAPI = {
 
       if (updateError) {
         console.error('Error updating credit balance:', updateError);
-        // No lanzar error para no interrumpir la creación de la factura
       }
 
       await logAudit('update', 'clients', clientId, `Saldo a favor aplicado: $${creditBalanceUsed.toFixed(2)}`);
@@ -145,7 +135,6 @@ export const invoicesExtendedAPI = {
     };
   },
 
-  // Generate monthly invoices for all active clients
   async generateMonthlyInvoices() {
     const { data, error } = await supabase.rpc('generate_monthly_invoices', {
       cutoff_day: 10,
@@ -158,7 +147,6 @@ export const invoicesExtendedAPI = {
     return { invoices: data || [], count: data?.length || 0 };
   },
 
-  // Print invoice (generate printable HTML para ticket 48mm)
   getPrintableInvoice(invoice: any, client?: any) {
     const now = new Date();
     const html = `
@@ -180,149 +168,110 @@ export const invoicesExtendedAPI = {
           .header { text-align: center; margin-bottom: 5mm; border-bottom: 1px dashed #000; padding-bottom: 2mm; }
           .header h1 { font-size: 14px; margin: 0; text-transform: uppercase; }
           .header p { margin: 2px 0; font-size: 9px; }
-          
           .section { margin-bottom: 4mm; }
           .info-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
           .bold { font-weight: bold; }
-          
           table { width: 100%; border-collapse: collapse; margin-top: 2mm; }
           th { border-bottom: 1px dashed #000; text-align: left; font-size: 9px; }
           td { padding: 2mm 0; vertical-align: top; }
-          
           .total-row { border-top: 1px double #000; margin-top: 2mm; padding-top: 2mm; }
           .amount-big { font-size: 14px; font-weight: bold; }
-          
-          .status-tag { 
-            border: 1px solid #000; 
-            padding: 1px 4px; 
-            display: inline-block; 
-            text-transform: uppercase;
-            font-size: 9px;
-          }
-
+          .status-tag { border: 1px solid #000; padding: 1px 4px; display: inline-block; text-transform: uppercase; font-size: 9px; }
           .footer { text-align: center; margin-top: 6mm; font-size: 9px; border-top: 1px dashed #000; padding-top: 3mm; }
-          
-          @media print {
-            .no-print { display: none; }
-            body { padding: 0; margin: 0; }
-          }
+          @media print { .no-print { display: none; } body { padding: 0; margin: 0; } }
         </style>
       </head>
       <body>
-        <button class="no-print" onclick="window.print()" style="width: 100%; padding: 10px; margin-bottom: 10px;">
-          IMPRIMIR TICKET
-        </button>
-        
+        <button class="no-print" onclick="window.print()" style="width: 100%; padding: 10px; margin-bottom: 10px;">IMPRIMIR TICKET</button>
         <div class="header">
           <h1>Digital+ ISP</h1>
           <p>Servicios de Internet y TV</p>
           <p>---------------------------</p>
         </div>
-
         <div class="section">
-          <div class="info-row">
-            <span>TICKET:</span>
-            <span class="bold">#${invoice.id.slice(0, 8).toUpperCase()}</span>
-          </div>
-          <div class="info-row">
-            <span>FECHA:</span>
-            <span>${new Date(invoice.created_at || now).toLocaleDateString('es-ES')}</span>
-          </div>
-          <div class="info-row">
-            <span>ESTADO:</span>
-            <span class="status-tag">
-              ${invoice.status === 'paid' ? 'PAGADO' : invoice.status === 'pending' ? 'PENDIENTE' : 'VENCIDO'}
-            </span>
-          </div>
+          <div class="info-row"><span>TICKET:</span><span class="bold">#${invoice.id.slice(0, 8).toUpperCase()}</span></div>
+          <div class="info-row"><span>FECHA:</span><span>${new Date(invoice.created_at || now).toLocaleDateString('es-ES')}</span></div>
+          <div class="info-row"><span>ESTADO:</span><span class="status-tag">${invoice.status === 'paid' ? 'PAGADO' : invoice.status === 'pending' ? 'PENDIENTE' : 'VENCIDO'}</span></div>
         </div>
-
-        <div class="section">
-          <span class="bold">CLIENTE:</span><br>
-          ${invoice.client_name || client?.name || 'Consumidor Final'}
-        </div>
-
+        <div class="section"><span class="bold">CLIENTE:</span><br>${invoice.client_name || client?.name || 'Consumidor Final'}</div>
         <table>
-          <thead>
-            <tr>
-              <th>DESC.</th>
-              <th style="text-align: right;">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${invoice.description || 'Servicio Internet'}</td>
-              <td style="text-align: right;">$${Number(invoice.amount).toFixed(2)}</td>
-            </tr>
-          </tbody>
+          <thead><tr><th>DESC.</th><th style="text-align: right;">TOTAL</th></tr></thead>
+          <tbody><tr><td>${invoice.description || 'Servicio Internet'}</td><td style="text-align: right;">$${Number(invoice.amount).toFixed(2)}</td></tr></tbody>
         </table>
-
         <div class="total-row">
-          <div class="info-row">
-            <span class="bold">TOTAL A PAGAR:</span>
-            <span class="amount-big">$${Number(invoice.amount).toFixed(2)}</span>
-          </div>
+          <div class="info-row"><span class="bold">TOTAL A PAGAR:</span><span class="amount-big">$${Number(invoice.amount).toFixed(2)}</span></div>
         </div>
-
-        ${invoice.payment_method ? `
-          <div class="section" style="margin-top: 4mm;">
-            <span class="bold">PAGO:</span> ${invoice.payment_method.toUpperCase()}<br>
-            ${invoice.payment_reference ? `REF: ${invoice.payment_reference}` : ''}
-          </div>
-        ` : ''}
-
+        ${invoice.payment_method ? `<div class="section" style="margin-top: 4mm;"><span class="bold">PAGO:</span> ${invoice.payment_method.toUpperCase()}<br>${invoice.payment_reference ? `REF: ${invoice.payment_reference}` : ''}</div>` : ''}
         <div class="footer">
           <p>Vence: ${new Date(invoice.due_date).toLocaleDateString('es-ES')}</p>
           <p>¡Gracias por su pago!</p>
           <p>Digital+ ISP</p>
-          <p>${now.getHours()}:${now.getMinutes()} - ${now.toLocaleDateString()}</p>
-          <br>
-          <p>. . . . . . . . . . . . .</p>
+          <p>${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} - ${now.toLocaleDateString()}</p>
+          <br><p>. . . . . . . . . . . . .</p>
         </div>
       </body>
       </html>
     `;
-
     return html;
   },
 };
 
 // ==================== BATCH OPERATIONS ====================
 
+export interface MaintenanceResult {
+  overdueInvoices: number;
+  delinquentClients: number;
+  message: string;
+}
+
 export const batchOperationsAPI = {
-  // Update overdue invoices
   async updateOverdueInvoices() {
     const { data, error } = await supabase.rpc('update_overdue_invoices');
-
     if (error) throw error;
-
     return { updated: data || [], count: data?.length || 0 };
   },
 
-  // Update delinquent clients
   async updateDelinquentClients() {
     const { data, error } = await supabase.rpc('update_delinquent_clients');
-
     if (error) throw error;
-
-    return { updated: data || [], count: data?.length || 0 };
+    // La función retorna { clients_updated: number }
+    const count = data?.[0]?.clients_updated ?? 0;
+    return { count };
   },
 
-  // Run all maintenance tasks
-  async runMaintenance() {
-    const overdueInvoices = await this.updateOverdueInvoices();
-    const delinquentClients = await this.updateDelinquentClients();
+  /**
+   * Ejecuta el mantenimiento completo usando la nueva función combinada.
+   * Orden: 1) facturas pending → overdue  2) clientes activos → morosos
+   * Los triggers también disparan automáticamente en tiempo real.
+   */
+  async runMaintenance(): Promise<MaintenanceResult> {
+    const { data, error } = await supabase.rpc('run_monthly_maintenance');
 
-    await logAudit(
-      'update',
-      'system',
-      'maintenance',
-      `Mantenimiento: ${overdueInvoices.count} facturas vencidas, ${delinquentClients.count} clientes morosos`
-    );
+    if (error) {
+      // Fallback al método manual si la función combinada no existe aún
+      console.warn('run_monthly_maintenance no disponible, usando método manual:', error.message);
+      const overdue = await this.updateOverdueInvoices();
+      const delinquent = await this.updateDelinquentClients();
 
-    return {
-      overdueInvoices: overdueInvoices.count,
-      delinquentClients: delinquentClients.count,
+      const result: MaintenanceResult = {
+        overdueInvoices: overdue.count,
+        delinquentClients: delinquent.count,
+        message: `${overdue.count} factura(s) vencida(s), ${delinquent.count} cliente(s) marcado(s) como moroso(s)`,
+      };
+
+      await logAudit('update', 'system', 'maintenance', result.message);
+      return result;
+    }
+
+    const row = data?.[0];
+    const result: MaintenanceResult = {
+      overdueInvoices: row?.overdue_invoices ?? 0,
+      delinquentClients: row?.delinquent_clients ?? 0,
+      message: row?.message ?? 'Mantenimiento completado',
     };
+
+    await logAudit('update', 'system', 'maintenance', result.message);
+    return result;
   },
 };
 
@@ -337,7 +286,6 @@ export const auditLogsAPI = {
       .limit(limit);
 
     if (error) throw error;
-
     return { logs: data };
   },
 
@@ -350,7 +298,6 @@ export const auditLogsAPI = {
       .limit(limit);
 
     if (error) throw error;
-
     return { logs: data };
   },
 
@@ -363,10 +310,8 @@ export const auditLogsAPI = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
     return { logs: data };
   },
 };
 
-// Export the logging function for use in other APIs
 export { logAudit };
