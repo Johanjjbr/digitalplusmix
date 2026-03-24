@@ -208,7 +208,17 @@ export function InvoiceFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+
+    const dataToSend = { ...formData };
+
+    if (!dataToSend.dueDate) {
+      const now = new Date();
+      const dueDate = new Date(now.getFullYear(), now.getMonth(), 10);
+      // Formatear a YYYY-MM-DD para el input tipo 'date'
+      dataToSend.dueDate = dueDate.toISOString().split('T')[0];
+    }
+    
+    onSubmit(dataToSend);
     setInvoiceType('plan');
     setFormData({
       clientId: '',
