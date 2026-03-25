@@ -342,7 +342,7 @@ export function InvoiceDetail() {
                 <Calendar className="w-4 h-4 text-gray-400" />
                 {invoice.dueDate && new Date(invoice.dueDate).getFullYear() > 1990
                   ? new Date(invoice.dueDate).toLocaleDateString('es-ES')
-                  : 'No definida'
+                  : 'No definida'}
               </p>
             </div>
             {invoice.paidDate && (
