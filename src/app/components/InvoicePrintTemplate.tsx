@@ -27,7 +27,7 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({ invo
         paddingBottom: '2mm'
       }}>
         <h1 style={{ fontSize: '14px', margin: '0', textTransform: 'uppercase' }}>
-          Digital Plus Mix
+          Digital+
         </h1>
         <p style={{ margin: '2px 0', fontSize: '9px' }}>
           Servicio de Internet
@@ -105,7 +105,7 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({ invo
         fontSize: '8px'
       }}>
         <p>Gracias por su preferencia</p>
-        <p>Digital Plus Mix - Servicio de Internet</p>
+        <p>Digital+ - Servicio de Internet</p>
       </div>
     </div>
   );
@@ -152,7 +152,7 @@ export const getPrintableInvoiceHTML = (invoice: any, client?: any): string => {
     </head>
     <body>
       <div class="header">
-        <h1>Digital Plus Mix</h1>
+        <h1>Digital+</h1>
         <p>Servicio de Internet</p>
         <p>Fecha: ${now.toLocaleDateString('es-ES')}</p>
       </div>
@@ -195,7 +195,7 @@ export const getPrintableInvoiceHTML = (invoice: any, client?: any): string => {
 
       <div style="text-align: center; margin-top: 5mm; font-size: 8px;">
         <p>Gracias por su preferencia</p>
-        <p>Digital Plus Mix - Servicio de Internet</p>
+        <p>Digital+ - Servicio de Internet</p>
       </div>
     </body>
     </html>

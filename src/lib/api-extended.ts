@@ -214,7 +214,7 @@ export const invoicesExtendedAPI = {
         </button>
         
         <div class="header">
-          <h1>Digital+ ISP</h1>
+          <h1>Digital+</h1>
           <p>Servicios de Internet y TV</p>
           <p>---------------------------</p>
         </div>
@@ -342,7 +342,7 @@ export const invoicesExtendedAPI = {
       <body>
         <div class="container">
           <div class="header">
-            <h1>Digital Plus Mix</h1>
+            <h1>Digital+</h1>
             <p>Servicio de Internet</p>
             <p>Factura Digital</p>
           </div>
@@ -415,7 +415,7 @@ export const invoicesExtendedAPI = {
           ` : ''}
 
           <div class="footer">
-            <p>Gracias por elegir Digital Plus Mix</p>
+            <p>Gracias por elegir Digital+</p>
             <p>Para cualquier consulta, contáctenos</p>
             <p>Generado el ${now.toLocaleString('es-ES')}</p>
           </div>
