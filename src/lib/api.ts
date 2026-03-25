@@ -281,16 +281,14 @@ export const invoicesAPI = {
     return { invoices: toCamelCase(data) };
   },
 
-  async create(invoice: any) {
-    console.log('=== API create() - Datos recibidos del formulario ===', invoice);
-    
+  async create(invoice: InvoiceInput) {
     const invoiceData = {
       client_id: invoice.clientId,
       client_name: invoice.clientName,
       amount: invoice.amount,
       description: invoice.description,
       status: invoice.status || 'pending',
-      due_date: invoice.dueDate,
+      due_date: dueDate,
       paid_date: invoice.paidDate,
     };
 
@@ -312,8 +310,10 @@ export const invoicesAPI = {
     if (invoice.amount !== undefined) invoiceData.amount = invoice.amount;
     if (invoice.description !== undefined) invoiceData.description = invoice.description;
     if (invoice.status !== undefined) invoiceData.status = invoice.status;
-    if (invoice.dueDate !== undefined) invoiceData.due_date = invoice.dueDate;
-    if (invoice.paidDate !== undefined) invoiceData.paid_date = invoice.paidDate;
+    if (invoice.due_date !== undefined) invoiceData.due_date = invoice.due_date;
+    if ((invoice as Record<string, unknown>).dueDate !== undefined) invoiceData.due_date = (invoice as Record<string, unknown>).dueDate;
+    if (invoice.paid_date !== undefined) invoiceData.paid_date = invoice.paid_date;
+    if ((invoice as Record<string, unknown>).paidDate !== undefined) invoiceData.paid_date = (invoice as Record<string, unknown>).paidDate;
 
     const { data, error } = await supabase
       .from('invoices')

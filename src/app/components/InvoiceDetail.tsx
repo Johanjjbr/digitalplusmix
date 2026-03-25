@@ -340,7 +340,9 @@ export function InvoiceDetail() {
               <label className="text-sm font-medium text-gray-500">Fecha de Vencimiento</label>
               <p className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-gray-400" />
-                {new Date(invoice.dueDate).toLocaleDateString('es-ES')}
+                {invoice.dueDate && new Date(invoice.dueDate).getFullYear() > 1990
+                  ? new Date(invoice.dueDate).toLocaleDateString('es-ES')
+                  : 'No definida'
               </p>
             </div>
             {invoice.paidDate && (

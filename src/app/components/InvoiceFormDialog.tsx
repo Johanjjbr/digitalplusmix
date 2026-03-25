@@ -208,7 +208,18 @@ export function InvoiceFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+
+    const dataToSend = { ...formData };
+
+    if (!dataToSend.dueDate) {
+      const now = new Date();
+      // Usar día 10 del próximo mes como fecha de vencimiento por defecto
+      const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 10);
+      // Formatear a YYYY-MM-DD para el input tipo 'date'
+      dataToSend.dueDate = dueDate.toISOString().split('T')[0];
+    }
+    
+    onSubmit(dataToSend);
     setInvoiceType('plan');
     setFormData({
       clientId: '',
