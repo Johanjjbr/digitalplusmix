@@ -1,34 +1,35 @@
 import { supabase } from './supabase';
 import { authService } from './auth';
+import type { Client, Plan, Invoice, ClientInput, PlanInput, InvoiceInput } from './supabase';
 
 // Helper function to convert snake_case to camelCase
-function toCamelCase(obj: any): any {
+function toCamelCase(obj: unknown): unknown {
   if (!obj || typeof obj !== 'object') return obj;
-  
+
   if (Array.isArray(obj)) {
     return obj.map(toCamelCase);
   }
 
-  const newObj: any = {};
+  const newObj: Record<string, unknown> = {};
   for (const key in obj) {
     const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-    newObj[camelKey] = toCamelCase(obj[key]);
+    newObj[camelKey] = toCamelCase((obj as Record<string, unknown>)[key]);
   }
   return newObj;
 }
 
 // Helper function to convert camelCase to snake_case
-function toSnakeCase(obj: any): any {
+function toSnakeCase(obj: unknown): unknown {
   if (!obj || typeof obj !== 'object') return obj;
-  
+
   if (Array.isArray(obj)) {
     return obj.map(toSnakeCase);
   }
 
-  const newObj: any = {};
+  const newObj: Record<string, unknown> = {};
   for (const key in obj) {
     const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-    newObj[snakeKey] = toSnakeCase(obj[key]);
+    newObj[snakeKey] = toSnakeCase((obj as Record<string, unknown>)[key]);
   }
   return newObj;
 }
@@ -73,7 +74,7 @@ export const clientsAPI = {
     if (error) throw error;
 
     // Mapear los datos para incluir zoneName
-    const clientsWithZoneName = data?.map((client: any) => ({
+    const clientsWithZoneName = data?.map((client: Client & { zones?: { name: string } }) => ({
       ...client,
       zoneName: client.zones?.name,
       zones: undefined, // Eliminar el objeto zones anidado
@@ -94,7 +95,7 @@ export const clientsAPI = {
     return { client: toCamelCase(data) };
   },
 
-  async create(client: any) {
+  async create(client: ClientInput) {
     const clientData = {
       name: client.name,
       email: client.email,
@@ -139,24 +140,32 @@ export const clientsAPI = {
     return { client: toCamelCase(data) };
   },
 
-  async update(id: string, client: any) {
-    const clientData: any = {};
+  async update(id: string, client: ClientInput) {
+    const clientData: Record<string, unknown> = {};
     if (client.name !== undefined) clientData.name = client.name;
     if (client.email !== undefined) clientData.email = client.email;
     if (client.phone !== undefined) clientData.phone = client.phone;
     if (client.address !== undefined) clientData.address = client.address;
-    if (client.ipAddress !== undefined) clientData.ip_address = client.ipAddress;
-    if (client.poleNumber !== undefined) clientData.pole_number = client.poleNumber;
+    if (client.ip_address !== undefined) clientData.ip_address = client.ip_address;
+    if ((client as Record<string, unknown>).ipAddress !== undefined) clientData.ip_address = (client as Record<string, unknown>).ipAddress;
+    if (client.pole_number !== undefined) clientData.pole_number = client.pole_number;
+    if ((client as Record<string, unknown>).poleNumber !== undefined) clientData.pole_number = (client as Record<string, unknown>).poleNumber;
     if (client.neighborhood !== undefined) clientData.neighborhood = client.neighborhood;
-    if (client.planId !== undefined) clientData.plan_id = client.planId;
-    if (client.planName !== undefined) clientData.plan_name = client.planName;
+    if (client.plan_id !== undefined) clientData.plan_id = client.plan_id;
+    if ((client as Record<string, unknown>).planId !== undefined) clientData.plan_id = (client as Record<string, unknown>).planId;
+    if (client.plan_name !== undefined) clientData.plan_name = client.plan_name;
+    if ((client as Record<string, unknown>).planName !== undefined) clientData.plan_name = (client as Record<string, unknown>).planName;
     if (client.status !== undefined) clientData.status = client.status;
-    if (client.connectionStatus !== undefined) clientData.connection_status = client.connectionStatus;
-    if (client.monthlyFee !== undefined) clientData.monthly_fee = client.monthlyFee;
+    if (client.connection_status !== undefined) clientData.connection_status = client.connection_status;
+    if ((client as Record<string, unknown>).connectionStatus !== undefined) clientData.connection_status = (client as Record<string, unknown>).connectionStatus;
+    if (client.monthly_fee !== undefined) clientData.monthly_fee = client.monthly_fee;
+    if ((client as Record<string, unknown>).monthlyFee !== undefined) clientData.monthly_fee = (client as Record<string, unknown>).monthlyFee;
     if (client.latitude !== undefined) clientData.latitude = client.latitude;
     if (client.longitude !== undefined) clientData.longitude = client.longitude;
-    if (client.documentNumber !== undefined) clientData.document_number = client.documentNumber;
-    if (client.zoneId !== undefined) clientData.zone_id = client.zoneId;
+    if (client.document_number !== undefined) clientData.document_number = client.document_number;
+    if ((client as Record<string, unknown>).documentNumber !== undefined) clientData.document_number = (client as Record<string, unknown>).documentNumber;
+    if (client.zone_id !== undefined) clientData.zone_id = client.zone_id;
+    if ((client as Record<string, unknown>).zoneId !== undefined) clientData.zone_id = (client as Record<string, unknown>).zoneId;
 
     const { data, error } = await supabase
       .from('clients')
@@ -205,7 +214,7 @@ export const plansAPI = {
     return { plans: data };
   },
 
-  async create(plan: any) {
+  async create(plan: PlanInput) {
     const planData = {
       name: plan.name,
       price: plan.price,
@@ -226,12 +235,14 @@ export const plansAPI = {
     return { plan: data };
   },
 
-  async update(id: string, plan: any) {
-    const planData: any = {};
+  async update(id: string, plan: PlanInput) {
+    const planData: Record<string, unknown> = {};
     if (plan.name !== undefined) planData.name = plan.name;
     if (plan.price !== undefined) planData.price = plan.price;
-    if (plan.downloadSpeed !== undefined) planData.download_speed = plan.downloadSpeed;
-    if (plan.uploadSpeed !== undefined) planData.upload_speed = plan.uploadSpeed;
+    if (plan.download_speed !== undefined) planData.download_speed = plan.download_speed;
+    if ((plan as Record<string, unknown>).downloadSpeed !== undefined) planData.download_speed = (plan as Record<string, unknown>).downloadSpeed;
+    if (plan.upload_speed !== undefined) planData.upload_speed = plan.upload_speed;
+    if ((plan as Record<string, unknown>).uploadSpeed !== undefined) planData.upload_speed = (plan as Record<string, unknown>).uploadSpeed;
     if (plan.features !== undefined) planData.features = plan.features;
     if (plan.popular !== undefined) planData.popular = plan.popular;
 
@@ -281,9 +292,7 @@ export const invoicesAPI = {
     return { invoices: toCamelCase(data) };
   },
 
-  async create(invoice: any) {
-    console.log('=== API create() - Datos recibidos del formulario ===', invoice);
-    
+  async create(invoice: InvoiceInput) {
     const invoiceData = {
       client_id: invoice.clientId,
       client_name: invoice.clientName,
@@ -293,8 +302,6 @@ export const invoicesAPI = {
       due_date: invoice.dueDate,
       paid_date: invoice.paidDate,
     };
-
-    console.log('=== API create() - Datos a insertar en Supabase ===', invoiceData);
 
     const { data, error } = await supabase
       .from('invoices')
@@ -307,13 +314,15 @@ export const invoicesAPI = {
     return { invoice: toCamelCase(data) };
   },
 
-  async update(id: string, invoice: any) {
-    const invoiceData: any = {};
+  async update(id: string, invoice: InvoiceInput) {
+    const invoiceData: Record<string, unknown> = {};
     if (invoice.amount !== undefined) invoiceData.amount = invoice.amount;
     if (invoice.description !== undefined) invoiceData.description = invoice.description;
     if (invoice.status !== undefined) invoiceData.status = invoice.status;
-    if (invoice.dueDate !== undefined) invoiceData.due_date = invoice.dueDate;
-    if (invoice.paidDate !== undefined) invoiceData.paid_date = invoice.paidDate;
+    if (invoice.due_date !== undefined) invoiceData.due_date = invoice.due_date;
+    if ((invoice as Record<string, unknown>).dueDate !== undefined) invoiceData.due_date = (invoice as Record<string, unknown>).dueDate;
+    if (invoice.paid_date !== undefined) invoiceData.paid_date = invoice.paid_date;
+    if ((invoice as Record<string, unknown>).paidDate !== undefined) invoiceData.paid_date = (invoice as Record<string, unknown>).paidDate;
 
     const { data, error } = await supabase
       .from('invoices')
@@ -344,10 +353,10 @@ export const initData = async () => {
     .select('*', { count: 'exact', head: true });
 
   if (count && count > 0) {
-    console.log('Data already exists');
+    // Data already exists - skipping initialization
     return { message: 'Data already initialized' };
   }
 
-  console.log('No initial data - use the UI to add clients and plans');
+    // No initial data - use the UI to add clients and plans
   return { message: 'Use the UI to add initial data' };
 };

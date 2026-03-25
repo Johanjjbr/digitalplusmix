@@ -45,7 +45,12 @@ export interface Zone {
   center_longitude?: number;
   created_at: string;
   updated_at: string;
+  // Aceptar también camelCase para compatibilidad
+  centerLatitude?: number;
+  centerLongitude?: number;
 }
+
+export type ZoneInput = Partial<Omit<Zone, 'id' | 'created_at' | 'updated_at'>>;
 
 export interface Ticket {
   id: string;
@@ -63,7 +68,16 @@ export interface Ticket {
   notes?: string;
   created_at: string;
   updated_at: string;
+  // Aceptar también camelCase para compatibilidad con formularios
+  clientId?: string;
+  clientName?: string;
+  assignedTo?: string;
+  reportedBy?: string;
+  resolvedAt?: string;
+  scheduledVisitDate?: string;
 }
+
+export type TicketInput = Partial<Omit<Ticket, 'id' | 'created_at' | 'updated_at'>>;
 
 export interface TicketComment {
   id: string;
@@ -73,7 +87,14 @@ export interface TicketComment {
   comment: string;
   is_internal: boolean;
   created_at: string;
+  // Aceptar también camelCase para compatibilidad
+  ticketId?: string;
+  userId?: string;
+  userName?: string;
+  isInternal?: boolean;
 }
+
+export type TicketCommentInput = Partial<Omit<TicketComment, 'id' | 'created_at'>>;
 
 export interface Payment {
   id: string;
@@ -108,11 +129,23 @@ export interface Client {
   zone_id?: string;
   last_payment_date?: string;
   next_billing_date?: string;
-  documentNumber?: string;  // En SQL es document_number
-  credit_balance?: number; // Saldo a favor del cliente
+  document_number?: string;
+  credit_balance?: number;
   created_at: string;
   updated_at: string;
-  
+  // Aceptar también camelCase
+  ipAddress?: string;
+  poleNumber?: string;
+  planId?: string;
+  planName?: string;
+  connectionStatus?: string;
+  monthlyFee?: number;
+  joinDate?: string;
+  zoneId?: string;
+  lastPaymentDate?: string;
+  nextBillingDate?: string;
+  documentNumber?: string;
+  creditBalance?: number;
 }
 
 export interface Plan {
@@ -126,6 +159,10 @@ export interface Plan {
   popular?: boolean;
   created_at: string;
   updated_at: string;
+  // Aceptar también camelCase
+  downloadSpeed?: string;
+  uploadSpeed?: string;
+  expirationDate?: string;
 }
 
 export interface Invoice {
@@ -146,4 +183,18 @@ export interface Invoice {
   is_monthly_auto?: boolean;
   created_at: string;
   updated_at: string;
+  // Aceptar también camelCase
+  clientId?: string;
+  clientName?: string;
+  amountPaid?: number;
+  dueDate?: string;
+  paidDate?: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  paidBy?: string;
+  isMonthlyAuto?: boolean;
 }
+
+export type ClientInput = Partial<Omit<Client, 'id' | 'created_at' | 'updated_at'>>;
+export type PlanInput = Partial<Omit<Plan, 'id' | 'created_at' | 'updated_at'>>;
+export type InvoiceInput = Partial<Omit<Invoice, 'id' | 'created_at' | 'updated_at'>>;

@@ -46,13 +46,9 @@ export const authService = {
 
       // Verificar contraseña (esto es simplificado, en producción usar bcrypt)
       const passwordHash = await simpleHash(credentials.password);
-      
-      // Para el usuario por defecto admin@digitalplus.com / admin123
-      const isDefaultAdmin = 
-        credentials.email === 'admin@digitalplus.com' && 
-        credentials.password === 'admin123';
 
-      if (!isDefaultAdmin && user.password_hash !== passwordHash) {
+      // Nota: En producción, migrar a Supabase Auth para mayor seguridad
+      if (user.password_hash !== passwordHash) {
         return { success: false, error: 'Contraseña incorrecta' };
       }
 
@@ -77,9 +73,9 @@ export const authService = {
       localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userSession));
 
       return { success: true, user: userSession };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error);
-      return { success: false, error: error.message || 'Error al iniciar sesión' };
+      return { success: false, error: error instanceof Error ? error.message : 'Error al iniciar sesión' };
     }
   },
 
@@ -138,9 +134,9 @@ export const authService = {
       if (error) throw error;
 
       return { success: true, user: newUser };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Register error:', error);
-      return { success: false, error: error.message || 'Error al registrar usuario' };
+      return { success: false, error: error instanceof Error ? error.message : 'Error al registrar usuario' };
     }
   },
 };
