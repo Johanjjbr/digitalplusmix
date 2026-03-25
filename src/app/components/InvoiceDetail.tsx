@@ -41,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/table';
+import { getPrintableInvoiceHTML } from './InvoicePrintTemplate';
 
 export function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -87,11 +88,25 @@ export function InvoiceDetail() {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
+      toast.error('Por favor, permite ventanas emergentes para enviar digitalmente');
+      return;
+    }
+
+    const html = invoicesExtendedAPI.getDigitalInvoice(invoice);
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const handlePrintTemplate = () => {
+    if (!invoice) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
       toast.error('Por favor, permite ventanas emergentes para imprimir');
       return;
     }
 
-    const html = invoicesExtendedAPI.getPrintableInvoice(invoice);
+    const html = getPrintableInvoiceHTML(invoice);
     printWindow.document.write(html);
     printWindow.document.close();
   };
@@ -259,13 +274,13 @@ export function InvoiceDetail() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handlePrint} variant="outline">
+          <Button onClick={handlePrintTemplate} variant="outline">
             <Printer className="w-4 h-4 mr-2" />
             Imprimir
           </Button>
-      <Button onClick={handlePrint} variant="outline">
+          <Button onClick={handlePrint} variant="outline">
             <Printer className="w-4 h-4 mr-2" />
-            Imprimir
+            Enviar Digital
           </Button>
           {/* Permitir registrar pagos para facturas pendientes, vencidas o parcialmente pagadas */}
           {(invoice.status === 'pending' || invoice.status === 'overdue' || (invoice.status === 'paid' && balance > 0)) && balance > 0 && (

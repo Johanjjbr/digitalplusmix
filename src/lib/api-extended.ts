@@ -284,6 +284,148 @@ export const invoicesExtendedAPI = {
 
     return html;
   },
+
+  // Get digital invoice (HTML for screen/digital sending)
+  getDigitalInvoice(invoice: any, client?: any) {
+    const now = new Date();
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Factura Digital #${invoice.id.slice(0, 8)}</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f9f9f9;
+          }
+          .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #007bff; padding-bottom: 20px; }
+          .header h1 { color: #007bff; margin: 0; }
+          .header p { margin: 5px 0; color: #666; }
+          
+          .info-section { margin-bottom: 20px; }
+          .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .bold { font-weight: bold; }
+          
+          .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+          .table th { background-color: #f8f9fa; font-weight: bold; }
+          
+          .total-section { background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }
+          .total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; }
+          
+          .status-badge { 
+            display: inline-block; 
+            padding: 5px 15px; 
+            border-radius: 20px; 
+            color: white; 
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+          }
+          .status-paid { background-color: #28a745; }
+          .status-pending { background-color: #ffc107; color: #000; }
+          .status-overdue { background-color: #dc3545; }
+          
+          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Digital Plus Mix</h1>
+            <p>Servicio de Internet</p>
+            <p>Factura Digital</p>
+          </div>
+
+          <div class="info-section">
+            <div class="info-row">
+              <span class="bold">Factura:</span>
+              <span>#${invoice.id.slice(0, 8).toUpperCase()}</span>
+            </div>
+            <div class="info-row">
+              <span class="bold">Cliente:</span>
+              <span>${invoice.client_name || client?.name || 'Consumidor Final'}</span>
+            </div>
+            <div class="info-row">
+              <span class="bold">Fecha de Emisión:</span>
+              <span>${new Date(invoice.created_at || now).toLocaleDateString('es-ES')}</span>
+            </div>
+            <div class="info-row">
+              <span class="bold">Fecha de Vencimiento:</span>
+              <span>${new Date(invoice.due_date).toLocaleDateString('es-ES')}</span>
+            </div>
+            <div class="info-row">
+              <span class="bold">Estado:</span>
+              <span class="status-badge ${invoice.status === 'paid' ? 'status-paid' : invoice.status === 'pending' ? 'status-pending' : 'status-overdue'}">
+                ${invoice.status === 'paid' ? 'Pagado' : invoice.status === 'pending' ? 'Pendiente' : 'Vencido'}
+              </span>
+            </div>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Descripción</th>
+                <th style="text-align: right;">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${invoice.description || 'Servicio de Internet'}</td>
+                <td style="text-align: right;">$${Number(invoice.amount).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="total-section">
+            <div class="total-row">
+              <span>Total:</span>
+              <span>$${Number(invoice.amount).toFixed(2)}</span>
+            </div>
+            ${invoice.amountPaid ? `
+              <div class="info-row" style="font-size: 14px; margin-top: 10px;">
+                <span>Pagado:</span>
+                <span>$${Number(invoice.amountPaid).toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${invoice.balance ? `
+              <div class="info-row" style="font-size: 14px;">
+                <span>Saldo Pendiente:</span>
+                <span>$${Number(invoice.balance).toFixed(2)}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          ${invoice.payment_method ? `
+            <div class="info-section">
+              <div class="bold">Información de Pago:</div>
+              <div>Método: ${invoice.payment_method}</div>
+              ${invoice.payment_reference ? `<div>Referencia: ${invoice.payment_reference}</div>` : ''}
+            </div>
+          ` : ''}
+
+          <div class="footer">
+            <p>Gracias por elegir Digital Plus Mix</p>
+            <p>Para cualquier consulta, contáctenos</p>
+            <p>Generado el ${now.toLocaleString('es-ES')}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return html;
+  },
 };
 
 // ==================== BATCH OPERATIONS ====================
