@@ -45,15 +45,15 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({ invo
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
           <span className="bold">Cliente:</span>
-          <span>{invoice.client_name}</span>
+          <span>{invoice.clientName}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
           <span className="bold">Fecha:</span>
-          <span>{new Date(invoice.created_at).toLocaleDateString('es-ES')}</span>
+          <span>{new Date(invoice.createdAt).toLocaleDateString('es-ES')}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
           <span className="bold">Vencimiento:</span>
-          <span>{new Date(invoice.due_date).toLocaleDateString('es-ES')}</span>
+          <span>{new Date(invoice.dueDate).toLocaleDateString('es-ES')}</span>
         </div>
       </div>
 
@@ -164,15 +164,15 @@ export const getPrintableInvoiceHTML = (invoice: any, client?: any): string => {
         </div>
         <div class="info-row">
           <span class="bold">Cliente:</span>
-          <span>${invoice.client_name}</span>
+          <span>${invoice.clientName}</span>
         </div>
         <div class="info-row">
           <span class="bold">Fecha:</span>
-          <span>${new Date(invoice.created_at).toLocaleDateString('es-ES')}</span>
+          <span>${new Date(invoice.createdAt).toLocaleDateString('es-ES')}</span>
         </div>
         <div class="info-row">
           <span class="bold">Vencimiento:</span>
-          <span>${new Date(invoice.due_date).toLocaleDateString('es-ES')}</span>
+          <span>${new Date(invoice.dueDate).toLocaleDateString('es-ES')}</span>
         </div>
       </div>
 

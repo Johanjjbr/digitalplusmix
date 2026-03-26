@@ -1,6 +1,17 @@
 import { supabase } from './supabase';
 import { authService } from './auth';
 
+// Types
+interface InvoiceInput {
+  clientId: string;
+  clientName: string;
+  amount: number;
+  description: string;
+  status?: string;
+  dueDate?: string;
+  paidDate?: string;
+}
+
 // Helper function to convert snake_case to camelCase
 function toCamelCase(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj;
@@ -288,7 +299,7 @@ export const invoicesAPI = {
       amount: invoice.amount,
       description: invoice.description,
       status: invoice.status || 'pending',
-      due_date: dueDate,
+      due_date: invoice.dueDate,
       paid_date: invoice.paidDate,
     };
 
