@@ -24,7 +24,6 @@ async function logAudit(
     ]);
   } catch (error) {
     console.error('Error logging audit:', error);
-    // Don't throw - audit logging shouldn't break the main operation
   }
 }
 
@@ -78,9 +77,9 @@ export const invoicesExtendedAPI = {
       throw new Error('El cliente no tiene una tarifa mensual configurada');
     }
 
-    // Calculate due date (10th of next month)
+    // Fecha de vencimiento = día 10 del mes ACTUAL
     const now = new Date();
-    const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 10);
+    const dueDate = new Date(now.getFullYear(), now.getMonth(), 10);
 
     let invoiceAmount = client.monthly_fee;
     let creditBalanceUsed = 0;
@@ -89,12 +88,10 @@ export const invoicesExtendedAPI = {
     // Aplicar saldo a favor si existe
     if (newCreditBalance > 0) {
       if (newCreditBalance >= invoiceAmount) {
-        // El saldo a favor cubre toda la factura
         creditBalanceUsed = invoiceAmount;
         newCreditBalance -= invoiceAmount;
         invoiceAmount = 0;
       } else {
-        // El saldo a favor cubre parte de la factura
         creditBalanceUsed = newCreditBalance;
         invoiceAmount -= newCreditBalance;
         newCreditBalance = 0;
@@ -104,13 +101,13 @@ export const invoicesExtendedAPI = {
     const invoiceData = {
       client_id: clientId,
       client_name: client.name,
-      amount: client.monthly_fee, // Monto original
+      amount: client.monthly_fee,
       description: `Factura mensual - ${client.plan_name || 'Servicio'}${creditBalanceUsed > 0 ? ` (Saldo a favor aplicado: $${creditBalanceUsed.toFixed(2)})` : ''}`,
-      status: invoiceAmount === 0 ? 'paid' : 'pending', // Si el saldo a favor cubrió todo, marcar como pagada
+      status: invoiceAmount === 0 ? 'paid' : 'pending',
       due_date: dueDate.toISOString().split('T')[0],
-      is_monthly_auto: false, // Manual generation
-      amount_paid: creditBalanceUsed, // Registrar el monto pagado con saldo a favor
-      balance: invoiceAmount, // Balance restante
+      is_monthly_auto: false,
+      amount_paid: creditBalanceUsed,
+      balance: invoiceAmount,
     };
 
     const { data, error } = await supabase
@@ -130,7 +127,6 @@ export const invoicesExtendedAPI = {
 
       if (updateError) {
         console.error('Error updating credit balance:', updateError);
-        // No lanzar error para no interrumpir la creación de la factura
       }
 
       await logAudit('update', 'clients', clientId, `Saldo a favor aplicado: $${creditBalanceUsed.toFixed(2)}`);
@@ -214,7 +210,7 @@ export const invoicesExtendedAPI = {
         </button>
         
         <div class="header">
-          <h1>Digital+</h1>
+          <h1>Digital+ ISP</h1>
           <p>Servicios de Internet y TV</p>
           <p>---------------------------</p>
         </div>
@@ -284,172 +280,23 @@ export const invoicesExtendedAPI = {
 
     return html;
   },
-
-  // Get digital invoice (HTML for screen/digital sending)
-  getDigitalInvoice(invoice: any, client?: any) {
-    const now = new Date();
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Factura Digital #${invoice.id.slice(0, 8)}</title>
-        <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            max-width: 600px; 
-            margin: 0 auto; 
-            padding: 20px; 
-            background-color: #f9f9f9;
-          }
-          .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #007bff; padding-bottom: 20px; }
-          .header h1 { color: #007bff; margin: 0; }
-          .header p { margin: 5px 0; color: #666; }
-          
-          .info-section { margin-bottom: 20px; }
-          .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-          .bold { font-weight: bold; }
-          
-          .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          .table th { background-color: #f8f9fa; font-weight: bold; }
-          
-          .total-section { background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }
-          .total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; }
-          
-          .status-badge { 
-            display: inline-block; 
-            padding: 5px 15px; 
-            border-radius: 20px; 
-            color: white; 
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 12px;
-          }
-          .status-paid { background-color: #28a745; }
-          .status-pending { background-color: #ffc107; color: #000; }
-          .status-overdue { background-color: #dc3545; }
-          
-          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Digital+</h1>
-            <p>Servicio de Internet</p>
-            <p>Factura Digital</p>
-          </div>
-
-          <div class="info-section">
-            <div class="info-row">
-              <span class="bold">Factura:</span>
-              <span>#${invoice.id.slice(0, 8).toUpperCase()}</span>
-            </div>
-            <div class="info-row">
-              <span class="bold">Cliente:</span>
-              <span>${invoice.client_name || client?.name || 'Consumidor Final'}</span>
-            </div>
-            <div class="info-row">
-              <span class="bold">Fecha de Emisión:</span>
-              <span>${new Date(invoice.created_at || now).toLocaleDateString('es-ES')}</span>
-            </div>
-            <div class="info-row">
-              <span class="bold">Fecha de Vencimiento:</span>
-              <span>${new Date(invoice.due_date).toLocaleDateString('es-ES')}</span>
-            </div>
-            <div class="info-row">
-              <span class="bold">Estado:</span>
-              <span class="status-badge ${invoice.status === 'paid' ? 'status-paid' : invoice.status === 'pending' ? 'status-pending' : 'status-overdue'}">
-                ${invoice.status === 'paid' ? 'Pagado' : invoice.status === 'pending' ? 'Pendiente' : 'Vencido'}
-              </span>
-            </div>
-          </div>
-
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Descripción</th>
-                <th style="text-align: right;">Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${invoice.description || 'Servicio de Internet'}</td>
-                <td style="text-align: right;">$${Number(invoice.amount).toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="total-section">
-            <div class="total-row">
-              <span>Total:</span>
-              <span>$${Number(invoice.amount).toFixed(2)}</span>
-            </div>
-            ${invoice.amountPaid ? `
-              <div class="info-row" style="font-size: 14px; margin-top: 10px;">
-                <span>Pagado:</span>
-                <span>$${Number(invoice.amountPaid).toFixed(2)}</span>
-              </div>
-            ` : ''}
-            ${invoice.balance ? `
-              <div class="info-row" style="font-size: 14px;">
-                <span>Saldo Pendiente:</span>
-                <span>$${Number(invoice.balance).toFixed(2)}</span>
-              </div>
-            ` : ''}
-          </div>
-
-          ${invoice.payment_method ? `
-            <div class="info-section">
-              <div class="bold">Información de Pago:</div>
-              <div>Método: ${invoice.payment_method}</div>
-              ${invoice.payment_reference ? `<div>Referencia: ${invoice.payment_reference}</div>` : ''}
-            </div>
-          ` : ''}
-
-          <div class="footer">
-            <p>Gracias por elegir Digital+</p>
-            <p>Para cualquier consulta, contáctenos</p>
-            <p>Generado el ${now.toLocaleString('es-ES')}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    return html;
-  },
 };
 
 // ==================== BATCH OPERATIONS ====================
 
 export const batchOperationsAPI = {
-  // Update overdue invoices
   async updateOverdueInvoices() {
     const { data, error } = await supabase.rpc('update_overdue_invoices');
-
     if (error) throw error;
-
     return { updated: data || [], count: data?.length || 0 };
   },
 
-  // Update delinquent clients
   async updateDelinquentClients() {
     const { data, error } = await supabase.rpc('update_delinquent_clients');
-
     if (error) throw error;
-
     return { updated: data || [], count: data?.length || 0 };
   },
 
-  // Run all maintenance tasks
   async runMaintenance() {
     const overdueInvoices = await this.updateOverdueInvoices();
     const delinquentClients = await this.updateDelinquentClients();
@@ -479,7 +326,6 @@ export const auditLogsAPI = {
       .limit(limit);
 
     if (error) throw error;
-
     return { logs: data };
   },
 
@@ -492,7 +338,6 @@ export const auditLogsAPI = {
       .limit(limit);
 
     if (error) throw error;
-
     return { logs: data };
   },
 
@@ -505,10 +350,8 @@ export const auditLogsAPI = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
     return { logs: data };
   },
 };
 
-// Export the logging function for use in other APIs
 export { logAudit };

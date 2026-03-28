@@ -26,17 +26,15 @@ export function MonthlyInvoiceDialog({ open, onOpenChange, onSubmit, clients }: 
   const [dueDate, setDueDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Calcular fecha por defecto (día 10 del próximo mes)
+  // Fecha de vencimiento = día 10 del mes ACTUAL
   useEffect(() => {
     if (open) {
       const today = new Date();
-      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 10);
-      const formattedDate = nextMonth.toISOString().split('T')[0];
-      setDueDate(formattedDate);
+      const due = new Date(today.getFullYear(), today.getMonth(), 10);
+      setDueDate(due.toISOString().split('T')[0]);
     }
   }, [open]);
 
-  // Reset cuando se cierra
   useEffect(() => {
     if (!open) {
       setSelectedClientIds(new Set());
@@ -110,7 +108,7 @@ export function MonthlyInvoiceDialog({ open, onOpenChange, onSubmit, clients }: 
                 />
               </div>
               <p className="text-sm text-gray-500">
-                Por defecto: día 10 del próximo mes
+                Por defecto: día 10 del mes actual
               </p>
             </div>
 
@@ -207,11 +205,11 @@ export function MonthlyInvoiceDialog({ open, onOpenChange, onSubmit, clients }: 
                   <div className="font-medium text-right">${totalAmount.toFixed(2)}</div>
                   <div className="text-gray-600">Fecha de vencimiento:</div>
                   <div className="font-medium text-right">
-                    {new Date(dueDate).toLocaleDateString('es-ES', {
+                    {dueDate ? new Date(dueDate + 'T00:00:00').toLocaleDateString('es-ES', {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric',
-                    })}
+                    }) : '-'}
                   </div>
                 </div>
               </div>
