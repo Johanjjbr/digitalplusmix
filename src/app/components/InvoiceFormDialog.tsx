@@ -8,6 +8,28 @@ import { Textarea } from '@/app/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/app/components/ui/radio-group';
 import { Combobox } from '@/app/components/ui/combobox';
 
+// Meses con su número (0-indexed para Date)
+const MONTHS = [
+  { label: 'Enero',      value: '0'  },
+  { label: 'Febrero',    value: '1'  },
+  { label: 'Marzo',      value: '2'  },
+  { label: 'Abril',      value: '3'  },
+  { label: 'Mayo',       value: '4'  },
+  { label: 'Junio',      value: '5'  },
+  { label: 'Julio',      value: '6'  },
+  { label: 'Agosto',     value: '7'  },
+  { label: 'Septiembre', value: '8'  },
+  { label: 'Octubre',    value: '9'  },
+  { label: 'Noviembre',  value: '10' },
+  { label: 'Diciembre',  value: '11' },
+];
+
+// Genera el due_date (día 10) para el mes/año seleccionado
+function buildDueDate(monthIndex: number, year: number): string {
+  const d = new Date(year, monthIndex, 10);
+  return d.toISOString().split('T')[0];
+}
+
 interface InvoiceFormData {
   clientId: string;
   clientName: string;
@@ -15,224 +37,193 @@ interface InvoiceFormData {
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
   dueDate?: string;
+  invoiceType?: 'plan' | 'advance' | 'custom';
 }
 
 interface InvoiceFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: InvoiceFormData) => void;
-  // Para modo múltiples clientes (Billing)
+  // Modo múltiples clientes (Billing)
   clients?: Array<{ id: string; name: string; monthlyFee: number; planName?: string }>;
-  // Para modo cliente único (ClientDetail)
+  // Modo cliente único (ClientDetail)
   clientId?: string;
   clientName?: string;
   monthlyFee?: number;
   planName?: string;
 }
 
-export function InvoiceFormDialog({ 
-  open, 
-  onOpenChange, 
-  onSubmit, 
-  clients, 
+export function InvoiceFormDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  clients,
   clientId: singleClientId,
   clientName: singleClientName,
   monthlyFee: singleMonthlyFee,
-  planName: singlePlanName
+  planName: singlePlanName,
 }: InvoiceFormDialogProps) {
   const isSingleClientMode = Boolean(singleClientId);
+
   const [invoiceType, setInvoiceType] = useState<'plan' | 'advance' | 'custom'>('plan');
-  const [advanceMonth, setAdvanceMonth] = useState('');
-  const [advanceYear, setAdvanceYear] = useState('');
+
+  // Estado para el mes/año del pago adelantado (usamos índice numérico del mes)
+  const now = new Date();
+  const [advanceMonthIndex, setAdvanceMonthIndex] = useState<number>(now.getMonth());
+  const [advanceYear, setAdvanceYear]             = useState<number>(now.getFullYear());
+
   const [formData, setFormData] = useState<InvoiceFormData>({
-    clientId: '',
-    clientName: '',
+    clientId:    '',
+    clientName:  '',
     description: '',
-    amount: 0,
-    status: 'pending',
+    amount:      0,
+    status:      'pending',
   });
 
-  // Inicializar mes y año adelantado con el próximo mes
-  useEffect(() => {
-    if (open) {
-      const now = new Date();
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      setAdvanceMonth(monthNames[nextMonth.getMonth()]);
-      setAdvanceYear(nextMonth.getFullYear().toString());
-    }
-  }, [open]);
+  // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  // Actualizar descripción cuando cambian mes/año adelantado
-  useEffect(() => {
-    if (invoiceType === 'advance' && advanceMonth && advanceYear && open) {
-      const planInfo = isSingleClientMode 
-        ? singlePlanName 
-        : clients?.find(c => c.id === formData.clientId)?.planName;
-      
-      setFormData(prev => ({
-        ...prev,
-        description: `Pago Adelantado - ${planInfo ? `Plan ${planInfo}` : 'Servicio'} - ${advanceMonth} ${advanceYear}`,
-      }));
-    }
-  }, [advanceMonth, advanceYear, invoiceType, isSingleClientMode, singlePlanName, formData.clientId, clients, open]);
+  function planDescription(planName?: string): string {
+    return `Servicio Mensual ${planName ? `- Plan ${planName}` : ''} - ${now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`;
+  }
 
-  // Reset form cuando se cierra el diálogo o cuando cambia el modo
+  function advanceDescription(monthIndex: number, year: number, planName?: string): string {
+    const monthLabel = MONTHS[monthIndex]?.label ?? '';
+    return `Pago Adelantado - ${planName ? `Plan ${planName}` : 'Servicio'} - ${monthLabel} ${year}`;
+  }
+
+  function currentMonthDueDate(): string {
+    return buildDueDate(now.getMonth(), now.getFullYear());
+  }
+
+  // ── Inicializar al abrir ─────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!open) {
       setInvoiceType('plan');
+      setAdvanceMonthIndex(now.getMonth());
+      setAdvanceYear(now.getFullYear());
+      setFormData({ clientId: '', clientName: '', description: '', amount: 0, status: 'pending' });
+      return;
+    }
+
+    if (isSingleClientMode && singleClientId) {
       setFormData({
-        clientId: '',
-        clientName: '',
-        description: '',
-        amount: 0,
-        status: 'pending',
-      });
-    } else if (isSingleClientMode && singleClientId) {
-      // Modo cliente único - pre-llenar datos
-      setFormData({
-        clientId: singleClientId,
-        clientName: singleClientName || '',
-        amount: invoiceType === 'plan' ? (singleMonthlyFee || 0) : 0,
-        description: invoiceType === 'plan' 
-          ? `Servicio Mensual ${singlePlanName ? `- Plan ${singlePlanName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`
-          : '',
-        status: 'pending',
+        clientId:    singleClientId,
+        clientName:  singleClientName ?? '',
+        amount:      singleMonthlyFee ?? 0,
+        description: planDescription(singlePlanName),
+        status:      'pending',
+        dueDate:     currentMonthDueDate(),
+        invoiceType: 'plan',
       });
     }
-  }, [open, isSingleClientMode, singleClientId, singleClientName, singleMonthlyFee, singlePlanName]);
+  }, [open]);
 
-  // Actualizar datos cuando cambia el tipo de factura en modo cliente único
+  // ── Recalcular cuando cambia el tipo de factura ──────────────────────────────
+
   useEffect(() => {
-    if (isSingleClientMode && singleClientId && open) {
+    if (!open) return;
+
+    const planName = isSingleClientMode
+      ? singlePlanName
+      : clients?.find(c => c.id === formData.clientId)?.planName;
+
+    const fee = isSingleClientMode
+      ? (singleMonthlyFee ?? 0)
+      : (clients?.find(c => c.id === formData.clientId)?.monthlyFee ?? 0);
+
+    if (invoiceType === 'plan') {
       setFormData(prev => ({
         ...prev,
-        amount: invoiceType === 'plan' ? (singleMonthlyFee || 0) : prev.amount,
-        description: invoiceType === 'plan'
-          ? `Servicio Mensual ${singlePlanName ? `- Plan ${singlePlanName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`
-          : prev.description,
+        amount:      fee,
+        description: planDescription(planName),
+        dueDate:     currentMonthDueDate(),
+        invoiceType: 'plan',
+      }));
+    } else if (invoiceType === 'advance') {
+      setFormData(prev => ({
+        ...prev,
+        amount:      fee,
+        description: advanceDescription(advanceMonthIndex, advanceYear, planName),
+        dueDate:     buildDueDate(advanceMonthIndex, advanceYear),
+        invoiceType: 'advance',
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        description: '',
+        dueDate:     undefined,
+        invoiceType: 'custom',
       }));
     }
-  }, [invoiceType, isSingleClientMode, singleClientId, singleMonthlyFee, singlePlanName, open]);
+  }, [invoiceType]);
+
+  // ── Recalcular descripción y dueDate cuando cambia mes/año en advance ────────
+
+  useEffect(() => {
+    if (!open || invoiceType !== 'advance') return;
+
+    const planName = isSingleClientMode
+      ? singlePlanName
+      : clients?.find(c => c.id === formData.clientId)?.planName;
+
+    setFormData(prev => ({
+      ...prev,
+      description: advanceDescription(advanceMonthIndex, advanceYear, planName),
+      dueDate:     buildDueDate(advanceMonthIndex, advanceYear),
+    }));
+  }, [advanceMonthIndex, advanceYear]);
+
+  // ── Cambio de cliente (modo múltiple) ────────────────────────────────────────
 
   const handleClientChange = (clientId: string) => {
     if (!clients) return;
-    const client = clients.find((c) => c.id === clientId);
-    if (client) {
-      if (invoiceType === 'plan') {
-        // Factura del plan
-        setFormData({
-          ...formData,
-          clientId,
-          clientName: client.name,
-          amount: client.monthlyFee || 0,
-          description: `Servicio Mensual ${client.planName ? `- Plan ${client.planName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
-        });
-      } else {
-        // Factura personalizada - solo actualiza cliente
-        setFormData({
-          ...formData,
-          clientId,
-          clientName: client.name,
-          description: '',
-          amount: 0,
-        });
-      }
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    if (invoiceType === 'plan') {
+      setFormData({
+        clientId,
+        clientName:  client.name,
+        amount:      client.monthlyFee ?? 0,
+        description: planDescription(client.planName),
+        status:      'pending',
+        dueDate:     currentMonthDueDate(),
+        invoiceType: 'plan',
+      });
+    } else if (invoiceType === 'advance') {
+      setFormData({
+        clientId,
+        clientName:  client.name,
+        amount:      client.monthlyFee ?? 0,
+        description: advanceDescription(advanceMonthIndex, advanceYear, client.planName),
+        status:      'pending',
+        dueDate:     buildDueDate(advanceMonthIndex, advanceYear),
+        invoiceType: 'advance',
+      });
+    } else {
+      setFormData(prev => ({ ...prev, clientId, clientName: client.name }));
     }
   };
 
-  const handleInvoiceTypeChange = (type: 'plan' | 'advance' | 'custom') => {
-    setInvoiceType(type);
-    
-    if (isSingleClientMode) {
-      // Modo cliente único
-      if (type === 'plan') {
-        setFormData(prev => ({
-          ...prev,
-          amount: singleMonthlyFee || 0,
-          description: `Servicio Mensual ${singlePlanName ? `- Plan ${singlePlanName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
-          dueDate: undefined, // Limpiar fecha personalizada
-        }));
-      } else if (type === 'advance') {
-        setFormData(prev => ({
-          ...prev,
-          amount: singleMonthlyFee || 0,
-          description: `Servicio Mensual ${singlePlanName ? `- Plan ${singlePlanName}` : ''} - ${advanceMonth} ${advanceYear}`,
-          dueDate: undefined,
-        }));
-      } else {
-        // Para factura personalizada, no resetear amount si ya tiene un valor válido
-        setFormData(prev => ({
-          ...prev,
-          description: '',
-          // Solo resetear amount si es 0 o no es un número válido
-          amount: (prev.amount > 0) ? prev.amount : 0,
-          dueDate: undefined,
-        }));
-      }
-    } else {
-      // Modo múltiples clientes
-      if (type === 'plan' && formData.clientId && clients) {
-        const client = clients.find((c) => c.id === formData.clientId);
-        if (client) {
-          setFormData({
-            ...formData,
-            amount: client.monthlyFee || 0,
-            description: `Servicio Mensual ${client.planName ? `- Plan ${client.planName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
-            dueDate: undefined,
-          });
-        }
-      } else if (type === 'advance' && formData.clientId && clients) {
-        const client = clients.find((c) => c.id === formData.clientId);
-        if (client) {
-          setFormData({
-            ...formData,
-            amount: client.monthlyFee || 0,
-            description: `Servicio Mensual ${client.planName ? `- Plan ${client.planName}` : ''} - ${advanceMonth} ${advanceYear}`,
-            dueDate: undefined,
-          });
-        }
-      } else if (type === 'custom') {
-        // Para factura personalizada, no resetear amount si ya tiene un valor válido
-        setFormData({
-          ...formData,
-          description: '',
-          // Solo resetear amount si es 0 o no es un número válido
-          amount: (formData.amount > 0) ? formData.amount : 0,
-          dueDate: undefined,
-        });
-      }
-    }
-  };
+  // ── Submit ───────────────────────────────────────────────────────────────────
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const dataToSend = { ...formData };
-
-    if (!dataToSend.dueDate) {
-      const now = new Date();
-      // Usar día 10 del próximo mes como fecha de vencimiento por defecto
-      const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 10);
-      // Formatear a YYYY-MM-DD para el input tipo 'date'
-      dataToSend.dueDate = dueDate.toISOString().split('T')[0];
-    }
-    
-    onSubmit(dataToSend);
+    onSubmit(formData);
     setInvoiceType('plan');
-    setFormData({
-      clientId: '',
-      clientName: '',
-      description: '',
-      amount: 0,
-      status: 'pending',
-    });
+    setFormData({ clientId: '', clientName: '', description: '', amount: 0, status: 'pending' });
   };
 
-  const selectedClient = isSingleClientMode 
-    ? { id: singleClientId!, name: singleClientName!, monthlyFee: singleMonthlyFee || 0, planName: singlePlanName }
-    : clients?.find((c) => c.id === formData.clientId);
+  // ── Datos del cliente seleccionado (para el resumen) ─────────────────────────
+
+  const selectedClient = isSingleClientMode
+    ? { id: singleClientId!, name: singleClientName!, monthlyFee: singleMonthlyFee ?? 0, planName: singlePlanName }
+    : clients?.find(c => c.id === formData.clientId);
+
+  const advanceMonthLabel = MONTHS[advanceMonthIndex]?.label ?? '';
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -240,18 +231,18 @@ export function InvoiceFormDialog({
         <DialogHeader>
           <DialogTitle>Crear Nueva Factura</DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
+
+            {/* Selector de cliente (solo modo múltiple) */}
             {!isSingleClientMode && (
               <div className="space-y-2">
                 <Label htmlFor="client">Cliente *</Label>
                 <Combobox
                   value={formData.clientId}
                   onValueChange={handleClientChange}
-                  options={clients?.map((client) => ({
-                    value: client.id,
-                    label: client.name,
-                  })) || []}
+                  options={clients?.map(c => ({ value: c.id, label: c.name })) ?? []}
                   placeholder="Seleccionar cliente"
                   searchPlaceholder="Buscar cliente..."
                   emptyText="No se encontraron clientes"
@@ -259,6 +250,7 @@ export function InvoiceFormDialog({
               </div>
             )}
 
+            {/* Cliente fijo (modo único) */}
             {isSingleClientMode && (
               <div className="rounded-lg bg-gray-50 border p-3">
                 <div className="text-sm text-gray-600">Cliente</div>
@@ -266,115 +258,119 @@ export function InvoiceFormDialog({
               </div>
             )}
 
+            {/* Tipo de factura */}
             {formData.clientId && (
               <div className="space-y-3">
                 <Label>Tipo de Factura *</Label>
-                <RadioGroup value={invoiceType} onValueChange={handleInvoiceTypeChange}>
+                <RadioGroup value={invoiceType} onValueChange={v => setInvoiceType(v as any)}>
+
+                  {/* Plan del mes */}
                   <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-gray-50">
                     <RadioGroupItem value="plan" id="plan" />
                     <Label htmlFor="plan" className="flex-1 cursor-pointer">
                       <div className="font-medium">Factura del Plan Asignado</div>
                       {selectedClient && (
                         <div className="text-sm text-gray-500">
-                          {selectedClient.planName || 'Sin plan'} - ${selectedClient.monthlyFee?.toFixed(2) || '0.00'}
+                          {selectedClient.planName ?? 'Sin plan'} — ${(selectedClient.monthlyFee ?? 0).toFixed(2)}
+                          {' · '}vence el{' '}
+                          {new Date(currentMonthDueDate() + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
                         </div>
                       )}
                     </Label>
                   </div>
+
+                  {/* Pago adelantado */}
                   <div className="flex flex-col space-y-2 rounded-lg border p-3 hover:bg-gray-50">
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="advance" id="advance" />
                       <Label htmlFor="advance" className="flex-1 cursor-pointer">
                         <div className="font-medium">Pago Adelantado</div>
-                        {selectedClient && (
+                        {selectedClient && invoiceType === 'advance' && (
                           <div className="text-sm text-gray-500">
-                            {selectedClient.planName || 'Sin plan'} - ${selectedClient.monthlyFee?.toFixed(2) || '0.00'}
+                            {selectedClient.planName ?? 'Sin plan'} — ${(selectedClient.monthlyFee ?? 0).toFixed(2)}
+                            {' · '}vence el 10 de {advanceMonthLabel} {advanceYear}
                           </div>
                         )}
                       </Label>
                     </div>
+
+                    {/* Selectores de mes/año — solo visibles cuando advance está activo */}
                     {invoiceType === 'advance' && (
                       <div className="ml-6 grid grid-cols-2 gap-2">
                         <div>
                           <Label htmlFor="advanceMonth" className="text-xs">Mes</Label>
-                          <Select value={advanceMonth} onValueChange={setAdvanceMonth}>
+                          <Select
+                            value={String(advanceMonthIndex)}
+                            onValueChange={v => setAdvanceMonthIndex(Number(v))}
+                          >
                             <SelectTrigger id="advanceMonth" className="h-9">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Enero">Enero</SelectItem>
-                              <SelectItem value="Febrero">Febrero</SelectItem>
-                              <SelectItem value="Marzo">Marzo</SelectItem>
-                              <SelectItem value="Abril">Abril</SelectItem>
-                              <SelectItem value="Mayo">Mayo</SelectItem>
-                              <SelectItem value="Junio">Junio</SelectItem>
-                              <SelectItem value="Julio">Julio</SelectItem>
-                              <SelectItem value="Agosto">Agosto</SelectItem>
-                              <SelectItem value="Septiembre">Septiembre</SelectItem>
-                              <SelectItem value="Octubre">Octubre</SelectItem>
-                              <SelectItem value="Noviembre">Noviembre</SelectItem>
-                              <SelectItem value="Diciembre">Diciembre</SelectItem>
+                              {MONTHS.map(m => (
+                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
                           <Label htmlFor="advanceYear" className="text-xs">Año</Label>
-                          <Select value={advanceYear} onValueChange={setAdvanceYear}>
+                          <Select
+                            value={String(advanceYear)}
+                            onValueChange={v => setAdvanceYear(Number(v))}
+                          >
                             <SelectTrigger id="advanceYear" className="h-9">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="2024">2024</SelectItem>
-                              <SelectItem value="2025">2025</SelectItem>
-                              <SelectItem value="2026">2026</SelectItem>
-                              <SelectItem value="2027">2027</SelectItem>
+                              {[now.getFullYear(), now.getFullYear() + 1, now.getFullYear() + 2].map(y => (
+                                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                     )}
                   </div>
+
+                  {/* Personalizada */}
                   <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-gray-50">
                     <RadioGroupItem value="custom" id="custom" />
                     <Label htmlFor="custom" className="flex-1 cursor-pointer">
                       <div className="font-medium">Factura Personalizada</div>
-                      <div className="text-sm text-gray-500">
-                        Especificar descripción y monto
-                      </div>
+                      <div className="text-sm text-gray-500">Especificar descripción y monto</div>
                     </Label>
                   </div>
+
                 </RadioGroup>
               </div>
             )}
 
+            {/* Descripción */}
             <div className="space-y-2">
               <Label htmlFor="description">
                 Descripción *
-                {(invoiceType === 'plan' || invoiceType === 'advance') && (
+                {invoiceType !== 'custom' && (
                   <span className="ml-2 text-xs text-gray-500">(Auto-completado)</span>
                 )}
               </Label>
               <Textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 required
                 rows={3}
-                disabled={invoiceType === 'plan' || invoiceType === 'advance'}
-                className={(invoiceType === 'plan' || invoiceType === 'advance') ? 'bg-gray-50' : ''}
-                placeholder={invoiceType === 'custom' ? 'Ej: Instalación de equipo, Reparación, Recarga extra, Materiales pendientes, Mes pendiente, etc.' : ''}
+                disabled={invoiceType !== 'custom'}
+                className={invoiceType !== 'custom' ? 'bg-gray-50' : ''}
+                placeholder={invoiceType === 'custom' ? 'Ej: Instalación de equipo, reparación, etc.' : ''}
               />
-              {invoiceType === 'custom' && (
-                <p className="text-xs text-gray-500">
-                  Esta descripción te ayudará a identificar el motivo del pago en el futuro.
-                </p>
-              )}
             </div>
 
+            {/* Monto */}
             <div className="space-y-2">
               <Label htmlFor="amount">
                 Monto *
-                {(invoiceType === 'plan' || invoiceType === 'advance') && (
+                {invoiceType !== 'custom' && (
                   <span className="ml-2 text-xs text-gray-500">(Del plan)</span>
                 )}
               </Label>
@@ -386,20 +382,20 @@ export function InvoiceFormDialog({
                   step="0.01"
                   min="0"
                   value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                  onChange={e => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
                   required
-                  disabled={invoiceType === 'plan' || invoiceType === 'advance'}
-                  className={(invoiceType === 'plan' || invoiceType === 'advance') ? 'bg-gray-50 pl-7' : 'pl-7'}
-                  placeholder={invoiceType === 'custom' ? '0.00' : ''}
+                  disabled={invoiceType !== 'custom'}
+                  className={invoiceType !== 'custom' ? 'bg-gray-50 pl-7' : 'pl-7'}
                 />
               </div>
             </div>
 
+            {/* Estado */}
             <div className="space-y-2">
               <Label htmlFor="status">Estado *</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: any) => setFormData({ ...formData, status: value })}
+                onValueChange={(v: any) => setFormData(prev => ({ ...prev, status: v }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -412,45 +408,50 @@ export function InvoiceFormDialog({
               </Select>
             </div>
 
+            {/* Fecha de vencimiento (solo custom) */}
             {invoiceType === 'custom' && (
               <div className="space-y-2">
                 <Label htmlFor="dueDate">Fecha de Vencimiento (Opcional)</Label>
                 <Input
                   id="dueDate"
                   type="date"
-                  value={formData.dueDate || ''}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  className=""
+                  value={formData.dueDate ?? ''}
+                  onChange={e => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
                 />
                 <p className="text-xs text-gray-500">
-                  Si no especificas una fecha, se generará automáticamente.
+                  Si no se especifica, se asignará el día 10 del mes actual.
                 </p>
               </div>
             )}
 
+            {/* Resumen */}
             {invoiceType === 'plan' && selectedClient && (
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                <div className="text-sm text-blue-800">
-                  <strong>Resumen:</strong> Se creará una factura de ${selectedClient.monthlyFee?.toFixed(2) || '0.00'} por el servicio mensual del plan {selectedClient.planName || 'asignado'}.
-                </div>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+                Se creará una factura de <strong>${(selectedClient.monthlyFee ?? 0).toFixed(2)}</strong> con vencimiento el{' '}
+                <strong>
+                  {new Date(currentMonthDueDate() + 'T00:00:00').toLocaleDateString('es-ES', {
+                    day: 'numeric', month: 'long', year: 'numeric',
+                  })}
+                </strong>.
               </div>
             )}
 
             {invoiceType === 'advance' && selectedClient && (
-              <div className="rounded-lg bg-green-50 border border-green-200 p-3">
-                <div className="text-sm text-green-800">
-                  <strong>Resumen:</strong> Se creará una factura de ${selectedClient.monthlyFee?.toFixed(2) || '0.00'} por el pago adelantado del mes de {advanceMonth} {advanceYear} del plan {selectedClient.planName || 'asignado'}.
-                </div>
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+                Pago adelantado de <strong>${(selectedClient.monthlyFee ?? 0).toFixed(2)}</strong> para{' '}
+                <strong>{advanceMonthLabel} {advanceYear}</strong> — vence el{' '}
+                <strong>10 de {advanceMonthLabel} {advanceYear}</strong>.
               </div>
             )}
+
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="bg-blue-600 hover:bg-blue-700"
               disabled={!formData.clientId || formData.amount <= 0 || !formData.description.trim()}
             >

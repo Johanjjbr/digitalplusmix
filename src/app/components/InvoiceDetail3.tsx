@@ -261,11 +261,11 @@ export function InvoiceDetail() {
         <div className="flex gap-2">
           <Button onClick={handlePrint} variant="outline">
             <Printer className="w-4 h-4 mr-2" />
-            Imprimir
+            Imprimir D
           </Button>
       <Button onClick={handlePrint} variant="outline">
             <Printer className="w-4 h-4 mr-2" />
-            Imprimir
+            Imprimir P
           </Button>
           {/* Permitir registrar pagos para facturas pendientes, vencidas o parcialmente pagadas */}
           {(invoice.status === 'pending' || invoice.status === 'overdue' || (invoice.status === 'paid' && balance > 0)) && balance > 0 && (

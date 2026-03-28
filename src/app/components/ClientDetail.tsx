@@ -135,67 +135,61 @@ export function ClientDetail() {
     }
   };
 
+  // ─── REEMPLAZAR en src/app/components/ClientDetail.tsx ───────────────────────
+//
+// Busca la función handleGenerateInvoice y reemplázala por esta versión.
+// El resto del archivo no cambia.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
   const handleGenerateInvoice = async (data: any) => {
     try {
       console.log('Datos de factura recibidos desde el formulario:', data);
-      
-      // Si se proporciona descripción y monto personalizados, crear factura personalizada
-      // De lo contrario, generar factura del plan con sistema de saldo a favor
-      if (data.description && data.amount) {
-        // Factura personalizada - usar API básica de create
-        await invoicesAPI.create(data);
-        toast.success('Factura personalizada creada exitosamente');
+
+      // Siempre usamos invoicesExtendedAPI para que el saldo a favor
+      // se aplique en TODOS los tipos de factura (plan, adelantado, custom).
+      const result = await invoicesExtendedAPI.generateForClient(id!, {
+        description: data.description,
+        amount:      data.amount,
+        dueDate:     data.dueDate,
+        status:      data.status,
+        invoiceType: data.invoiceType,
+      });
+
+      if (result.creditBalanceUsed && result.creditBalanceUsed > 0) {
+        const details: string[] = [
+          `Saldo a favor aplicado: $${result.creditBalanceUsed.toFixed(2)}`,
+          result.invoice.balance === 0
+            ? 'La factura está totalmente pagada con el saldo a favor'
+            : `Balance pendiente: $${result.invoice.balance.toFixed(2)}`,
+          ...(result.newCreditBalance > 0
+            ? [`Saldo a favor restante: $${result.newCreditBalance.toFixed(2)}`]
+            : []),
+        ];
+
+        toast.success(
+          <div>
+            <p className="font-semibold">Factura creada exitosamente</p>
+            <ul className="mt-2 text-sm space-y-1">
+              {details.map((d, i) => <li key={i}>• {d}</li>)}
+            </ul>
+          </div>,
+          { duration: 6000 }
+        );
       } else {
-        // Factura del plan - usar API extendida con saldo a favor
-        const result = await invoicesExtendedAPI.generateForClient(id!);
-        
-        // Mostrar mensaje apropiado según si se aplicó saldo a favor
-        if (result.creditBalanceUsed && result.creditBalanceUsed > 0) {
-          const message = `Factura creada exitosamente`;
-          const details: string[] = [];
-          
-          details.push(`Saldo a favor aplicado: $${result.creditBalanceUsed.toFixed(2)}`);
-          
-          if (result.invoice.balance === 0) {
-            details.push(`La factura está totalmente pagada con el saldo a favor`);
-          } else {
-            details.push(`Balance pendiente: $${result.invoice.balance.toFixed(2)}`);
-          }
-          
-          if (result.newCreditBalance > 0) {
-            details.push(`Saldo a favor restante: $${result.newCreditBalance.toFixed(2)}`);
-          }
-          
-          toast.success(
-            <div>
-              <p className="font-semibold">{message}</p>
-              <ul className="mt-2 text-sm space-y-1">
-                {details.map((detail, index) => (
-                  <li key={index}>• {detail}</li>
-                ))}
-              </ul>
-            </div>,
-            { duration: 6000 }
-          );
-        } else {
-          toast.success('Factura creada exitosamente');
-        }
+        toast.success('Factura creada exitosamente');
       }
-      
+
       setIsInvoiceDialogOpen(false);
-      loadData(); // Reload to show the new invoice and updated credit balance
+      loadData();
     } catch (error: any) {
       console.error('Error creating invoice:', error);
-      
-      // Mostrar mensaje detallado si es error de base de datos
+
       if (error instanceof Error && error.message.includes('credit_balance')) {
-        toast.error(
-          'Error: Falta actualización en la base de datos',
-          {
-            description: 'Ejecuta el script ADD_CREDIT_BALANCE.sql en Supabase. Ver archivo EJECUTAR_AHORA.txt',
-            duration: 10000,
-          }
-        );
+        toast.error('Error: Falta actualización en la base de datos', {
+          description: 'Ejecuta el script ADD_CREDIT_BALANCE.sql en Supabase.',
+          duration: 10000,
+        });
       } else {
         toast.error(error.message || 'Error al crear la factura');
       }
