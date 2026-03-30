@@ -212,7 +212,7 @@ export const invoicesExtendedAPI = {
         <title>Ticket #${invoice.id.slice(0, 8)}</title>
         <style>
           @page { size: 48mm 297mm; margin: 0; }
-          body { font-family: "Courier New", Courier, monospace; width: 48mm; margin: 0; padding: 2mm; font-size: 10px; line-height: 1.2; }
+          body { font-family: "Arial", Courier, monospace; width: 48mm; margin: 0; padding: 2mm; font-size: 10px; line-height: 1.2; }
           .header { text-align: center; margin-bottom: 5mm; border-bottom: 1px dashed #000; padding-bottom: 2mm; }
           .header h1 { font-size: 14px; margin: 0; text-transform: uppercase; }
           .header p { margin: 2px 0; font-size: 9px; }
