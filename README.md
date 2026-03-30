@@ -1,292 +1,143 @@
-# 🏢 Digital+ ISP - Dashboard Administrativo
+﻿# 🏢 Digital+ ISP - Dashboard Administrativo
 
 Sistema de gestión completo para proveedores de TV e Internet (ISP) construido con React, TypeScript, Tailwind CSS y Supabase.
 
----
+## 📌 Estado importante (crítico)
 
-## 🚨 ¿ERROR "credit_balance does not exist"?
-
-### ⚡ SOLUCIÓN RÁPIDA (2 MINUTOS):
-
-1. **Abre:** `EJECUTAR_AHORA.txt`
-2. **Copia** el código SQL completo
-3. **Ve a:** https://supabase.com/dashboard → SQL Editor
-4. **Pega** el código y presiona "Run"
-5. **Recarga** tu aplicación
-
-**Archivos de ayuda:**
-- 📄 `EJECUTAR_AHORA.txt` - Código listo para copiar/pegar ⭐ **EMPIEZA AQUÍ**
-- 📘 `RESUMEN_EJECUTIVO.md` - Resumen completo del problema y solución
-- 📗 `SOLUCION_RAPIDA.md` - Guía express
-- 📙 `PASOS_EJECUTAR_SQL.md` - Tutorial detallado paso a paso
-- 📋 `CHECKLIST_SOLUCION.md` - Lista de verificación
+Si ves el error: `credit_balance does not exist`, ve directamente a la sección de **3. Troubleshooting** y ejecuta la solución rápida desde `archives/EJECUTAR_AHORA.txt`.
 
 ---
 
-## 🚀 Inicio Rápido
+## 📚 Tabla de contenidos
 
-### 1. Configurar Base de Datos
+1. [Inicio rápido](#inicio-rápido)
+2. [Funcionalidades](#funcionalidades)
+3. [Problemas comunes / Troubleshooting](#problemas-comunes--troubleshooting)
+4. [Tecnologías y seguridad](#tecnologías-y-seguridad)
+5. [Estructura del proyecto](#estructura-del-proyecto)
+6. [Despliegue](#despliegue)
+7. [Archivos de referencia](#archivos-de-referencia)
+8. [Contribuir](#contribuir)
 
-1. Ve a [Supabase Dashboard](https://supabase.com/dashboard) y abre tu proyecto
+---
+
+## 🚀 Inicio rápido
+
+### 1. Crear esquema en Supabase
+
+1. Abre [Supabase Dashboard](https://supabase.com/dashboard)
 2. Ve a **SQL Editor** → **New Query**
-3. Copia y pega el contenido del archivo `database-schema-COMPLETO-FINAL.sql`
+3. Copia y pega `database-schema-COMPLETO-FINAL.sql`
 4. Haz clic en **Run**
 
-### 2. La App Ya Está Conectada
+### 2. Configura variables de entorno (local)
 
-✅ El código ya está actualizado para conectarse directamente con Supabase
-✅ No necesitas desplegar Edge Functions
-✅ Funciona inmediatamente con las credenciales de Supabase en Figma Make
+- Crea archivo `.env` siguiendo `.env.example` (si existe) o la documentación de tu host.
+- Valores clave: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 
-### 3. Probar
+### 3. Ejecutar la app
 
-1. Abre la aplicación
-2. Ve a **Planes** → **Agregar Plan** y crea un plan de prueba
-3. Ve a **Supabase Dashboard** → **Table Editor** → **plans**
-4. Deberías ver el plan que acabas de crear
-
-¡Eso es todo! 🎉
-
----
-
-## 📚 Documentación
-
-### 📄 Archivos de Guías
-
-- **`CONEXION_RAPIDA.md`** ⭐ - **Empieza aquí** - Guía de 5 minutos para conectar todo
-- **`database-schema-COMPLETO-FINAL.sql`** - Script SQL para crear las tablas en Supabase
-- **`DEPLOYMENT_GUIDE.md`** - Guía completa para desplegar a producción (Vercel, Netlify, etc.)
-- **`SUPABASE_SETUP.md`** - Guía detallada sobre Supabase y consultas SQL útiles
-- **`EDGE_FUNCTIONS_SETUP.md`** - (Opcional) Si prefieres usar Edge Functions en lugar de API directa
+- `npm install`
+- `npm run dev`
+- Abre `http://localhost:5173` (o puerto que indique Vite)
 
 ---
 
 ## 🎯 Funcionalidades
 
-### ✅ Gestión de Clientes
-- Ver lista completa de clientes con filtros
-- Agregar, editar y eliminar clientes
-- Ver perfil detallado de cada cliente
-- Filtrar por barrio, estado y búsqueda
-- Badges de estado (Al día, Moroso, Suspendido)
-
-### ✅ Gestión de Planes
-- Crear y gestionar planes de internet y TV
-- Precios y características personalizables
-- Velocidades de descarga/subida
-- Marcar planes como "populares"
-
-### ✅ Facturación
-- Ver historial completo de facturas
-- Crear facturas para clientes
-- Estados: Pagado, Pendiente, Vencido
-- Filtrar por estado y cliente
-- Imprimir facturas (próximamente)
-
-### ✅ Dashboard
-- Resumen de métricas clave
-- Estadísticas de clientes activos/morosos
-- Ingresos totales
-- Gráficos y visualizaciones
-
-### ✅ Otras Secciones
-- Mapa de Red (en desarrollo)
-- Configuración (en desarrollo)
+- Gestión de clientes: listar, filtrar, crear, editar, eliminar
+- Gestión de planes: creación, edición, precios, velocidades, plan "popular"
+- Facturación: emitir facturas, estados (Pagado, Pendiente, Vencido), filtros por cliente
+- Dashboard: métricas de clientes, morosidad, ingresos, gráficos
+- Mapa de red y configuración en desarrollo
 
 ---
 
-## 🗄️ Estructura de la Base de Datos
+## 🐛 Problemas comunes / Troubleshooting
 
-### Tablas Principales
+### 3.1 Error `credit_balance does not exist`
 
-#### `plans` - Planes de servicio
-```sql
-id, name, price, download_speed, upload_speed, features, popular
-```
+1. Ejecuta SQL en `archives/EJECUTAR_AHORA.txt` (o copia manual desde archivo)
+2. Refresca la app
+3. Verifica tablas `credit_balance` y `billings` creadas
 
-#### `clients` - Clientes
-```sql
-id, name, email, phone, address, ip_address, pole_number,
-neighborhood, plan_id, status, connection_status, monthly_fee
-```
+### 3.2 Error `relation does not exist`
 
-#### `invoices` - Facturas
-```sql
-id, client_id, client_name, amount, description, status,
-due_date, paid_date
-```
+- Asegúrate de haber ejecutado `database-schema-COMPLETO-FINAL.sql` correctamente.
+- Revisa en Supabase Table Editor si la tabla existe.
 
-Ver consultas SQL útiles en `SUPABASE_SETUP.md`.
+### 3.3 Error `duplicate key value`
+
+- Asegúrate de no crear clientes con emails duplicados.
 
 ---
 
-## 💻 Tecnologías
+## 💻 Tecnologías y seguridad
 
-- **Frontend**: React 18 + TypeScript
-- **Estilos**: Tailwind CSS v4
-- **Routing**: React Router v7
-- **Backend**: Supabase (PostgreSQL)
-- **UI Components**: shadcn/ui
-- **Iconos**: Lucide React
-- **Notificaciones**: Sonner
-- **Deployment**: Vercel / Netlify
+- Frontend: React 18 + TypeScript
+- UI: Tailwind CSS + shadcn/ui + Lucide React
+- Backend: Supabase PostgreSQL (RLS habilitado)
+- Autenticación: Supabase Auth (si aplica)
+- Notificaciones: Sonner
+- Deploy: Vercel / Netlify
 
----
+### 🔒 Seguridad
 
-## 🔒 Seguridad
-
-- ✅ Row Level Security (RLS) habilitado en Supabase
-- ✅ Políticas de acceso configuradas
-- ✅ Variables de entorno para credenciales
-- ✅ Validación de datos en frontend
-- ⚠️ No almacenar información sensible o PII sin las medidas de seguridad adecuadas
+- RLS habilitado y políticas según rol
+- Validación frontend
+- No almacenar datos sensibles sin controles extra
 
 ---
 
-## 📦 Estructura del Proyecto
+## 🗂️ Estructura del proyecto
 
 ```
-/
-├── src/
-│   ├── app/
-│   │   ├── App.tsx              # Componente principal
-│   │   ├── routes.ts            # Configuración de rutas
-│   │   └── components/          # Componentes React
-│   │       ├── Clients.tsx      # Gestión de clientes
-│   │       ├── Plans.tsx        # Gestión de planes
-│   │       ├── Billing.tsx      # Facturación
-│   │       ├── Dashboard.tsx    # Dashboard principal
-│   │       └── ...
-│   ├── lib/
-│   │   ├── supabase.ts         # Cliente de Supabase
-│   │   ├── api.ts              # API calls (CONECTADO DIRECTAMENTE)
-│   │   └── initData.ts         # Inicialización de datos
-│   └── styles/                  # Estilos CSS
-├── database-schema-COMPLETO-FINAL.sql          # Script SQL para Supabase
-├── CONEXION_RAPIDA.md          # 🌟 Guía de inicio rápido
-├── DEPLOYMENT_GUIDE.md          # Guía de despliegue
-├── SUPABASE_SETUP.md           # Guía completa de Supabase
-└── README.md                    # Este archivo
+/ (raíz)
+  ├─ src/
+  │   ├─ app/
+  │   │   ├─ App.tsx
+  │   │   ├─ routes.ts
+  │   │   └─ components/ ...
+  │   ├─ lib/ (supabase.ts, api.ts, initData.ts)
+  │   └─ styles/
+  ├─ database-schema-COMPLETO-FINAL.sql
+  ├─ CONEXION_RAPIDA.md
+  ├─ DEPLOYMENT_GUIDE.md
+  ├─ SUPABASE_SETUP.md
+  ├─ README.md
+  ├─ archives/ ... (documentación histórica y scripts SQL)
+  └─ ...
 ```
 
 ---
 
-## 🚀 Desplegar a Producción
+## 🚀 Despliegue
 
-Sigue la guía detallada en **`DEPLOYMENT_GUIDE.md`** que incluye:
-
-- Despliegue en Vercel (gratis)
-- Despliegue en Netlify (gratis)
-- Hosting tradicional (cPanel, FTP)
-- Configuración de variables de entorno
-- Dominio personalizado
-- SSL/HTTPS
+1. Configura variables de entorno en su plataforma (Vercel/Netlify).
+2. `npm run build`
+3. Despliega usando tu proveedor (ver `DEPLOYMENT_GUIDE.md`).
 
 ---
 
-## 🐛 Solución de Problemas Comunes
+## 📁 Archivos de referencia
 
-### Los datos no se guardan en Supabase
+- `archives/database-schema.sql`, `archives/database-schema-v2.sql`, ...
+- `archives/README_COMPLETO.md`, `archives/SOLUCION_RAPIDA.md`, ...
+- `archives/EJECUTAR_AHORA.txt`, `archives/RESUMEN_EJECUTIVO.md`.
 
-1. Verifica que las tablas existan (ejecuta `database-schema-COMPLETO-FINAL.sql`)
-2. Abre la consola del navegador (F12) y busca errores
-3. Verifica que Supabase esté conectado en Figma Make
-
-### Error: "duplicate key value"
-
-Estás usando un email que ya existe. Cada cliente debe tener un email único.
-
-### Error: "relation does not exist"
-
-Las tablas no se crearon. Ejecuta el script SQL completo en Supabase.
-
-### Más problemas?
-
-Consulta la sección de "Solución de Problemas" en:
-- `CONEXION_RAPIDA.md`
-- `DEPLOYMENT_GUIDE.md`
-- `SUPABASE_SETUP.md`
+> Si necesitas una copia histórica completa usa los archivos dentro de `archives/`.
 
 ---
 
-## 📊 Ver Datos en Supabase
+## 🤝 Contribuir
 
-### Desde Table Editor (Visual)
-
-1. **Supabase Dashboard** → **Table Editor**
-2. Selecciona una tabla
-3. Ver, editar, agregar o eliminar datos
-
-### Desde SQL Editor (Consultas)
-
-```sql
--- Ver todos los clientes con su plan
-SELECT 
-  c.name, 
-  c.email, 
-  c.status,
-  p.name as plan_name
-FROM clients c
-LEFT JOIN plans p ON c.plan_id = p.id;
-```
-
-Ver más consultas útiles en `SUPABASE_SETUP.md`.
+- Usa PRs y describe cambios claros
+- Abre issues para bugs o mejoras
+- Mantén la estructura de releases y seguimiento en `CHANGELOG` si decides usarlo.
 
 ---
 
-## 🔄 Flujo de Trabajo Recomendado
+## 📌 Nota final
 
-1. **Crear Planes** - Define tus planes de servicio
-2. **Agregar Clientes** - Asigna clientes a planes
-3. **Generar Facturas** - Crea facturas para cada cliente
-4. **Monitorear** - Usa el dashboard para ver métricas
-5. **Gestionar** - Actualiza estados, planes, etc.
-
----
-
-## 📈 Próximas Mejoras Sugeridas
-
-- [ ] Autenticación de usuarios con Supabase Auth
-- [ ] Roles y permisos (Admin, Técnico, etc.)
-- [ ] Exportar reportes a PDF/Excel
-- [ ] Mapa de red interactivo
-- [ ] Notificaciones automáticas por email
-- [ ] Dashboard de métricas avanzadas
-- [ ] App móvil (React Native)
-
----
-
-## 📞 Recursos
-
-- **Supabase**: https://supabase.com/dashboard
-- **Documentación Supabase**: https://supabase.com/docs
-- **Vercel**: https://vercel.com
-- **Netlify**: https://netlify.com
-- **Tailwind CSS**: https://tailwindcss.com
-- **React Router**: https://reactrouter.com
-
----
-
-## 📝 Notas Importantes
-
-⚠️ **Este sistema NO está diseñado para almacenar información personal identificable (PII) o datos sensibles sin las medidas de seguridad apropiadas.**
-
-⚠️ **Asegúrate de configurar backups regulares en Supabase antes de usar en producción.**
-
-⚠️ **Revisa y ajusta las políticas de seguridad (RLS) según tus necesidades.**
-
----
-
-## 🎓 Cómo Empezar
-
-1. Lee **`CONEXION_RAPIDA.md`** (5 minutos)
-2. Ejecuta el script SQL en Supabase
-3. Prueba crear un plan y un cliente
-4. Verifica que aparezcan en Supabase
-5. Cuando estés listo, lee **`DEPLOYMENT_GUIDE.md`** para publicar
-
----
-
-**¡Listo para empezar! 🚀**
-
-Si tienes problemas, revisa las guías detalladas en los archivos `.md` incluidos en el proyecto.
+- Aquí se conserva lo esencial para arranque rápido y mantenimiento.
+- Todo contenido extra/antiguo está en `archives/`.
