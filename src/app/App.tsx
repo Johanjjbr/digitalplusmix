@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
-import { initializeSampleData } from '@/lib/initData';
 import { authService } from '@/lib/auth';
 import { Sidebar } from '@/app/components/Sidebar';
 import { Dashboard } from '@/app/components/Dashboard';
@@ -18,23 +17,18 @@ import { Settings } from '@/app/components/Settings';
 import { AuditLogs } from '@/app/components/AuditLogs';
 import { Login } from '@/app/components/Login';
 
-// Lazy load para componentes nuevos
 import { lazy, Suspense } from 'react';
 const Users = lazy(() => import('@/app/components/Users').then(module => ({ default: module.Users })));
 const DailyReport = lazy(() => import('@/app/components/DailyReport').then(module => ({ default: module.DailyReport })));
 
-// Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = authService.isAuthenticated();
-  
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
   return <>{children}</>;
 }
 
-// Loading component
 function LoadingScreen() {
   return (
     <div className="p-8 flex items-center justify-center">
@@ -47,20 +41,13 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
 
   useEffect(() => {
-    // Initialize sample data on first load
-    initializeSampleData();
-    
-    // Check authentication status
     setIsAuthenticated(authService.isAuthenticated());
   }, []);
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login Route */}
         <Route path="/login" element={<Login />} />
-        
-        {/* Protected Routes */}
         <Route
           path="/*"
           element={
