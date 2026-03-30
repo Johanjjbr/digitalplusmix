@@ -83,7 +83,7 @@ export function InvoiceDetail() {
     }
   };
 
-  const handlePrint = () => {
+  const handlePrintLegacy = () => {
     if (!invoice) return;
 
     const printWindow = window.open('', '_blank');
@@ -92,17 +92,20 @@ export function InvoiceDetail() {
       return;
     }
 
-    const html = invoicesExtendedAPI.getDigitalInvoice(invoice);
+    const html =
+      (invoicesExtendedAPI as any).getDigitalInvoice?.(invoice) ||
+      getPrintableInvoiceHTML(invoice);
+
     printWindow.document.write(html);
     printWindow.document.close();
   };
 
-  const handlePrintTemplate = () => {
+  const handleSendDigitalInvoice = () => {
     if (!invoice) return;
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      toast.error('Por favor, permite ventanas emergentes para imprimir');
+      toast.error('Por favor, permite ventanas emergentes para enviar digitalmente');
       return;
     }
 
@@ -274,14 +277,15 @@ export function InvoiceDetail() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handlePrintTemplate} variant="outline">
-            <Printer className="w-4 h-4 mr-2" />
-            Imprimir
-          </Button>
-          <Button onClick={handlePrint} variant="outline">
+          <Button onClick={handleSendDigitalInvoice} variant="outline">
             <Printer className="w-4 h-4 mr-2" />
             Enviar Digital
           </Button>
+          <Button onClick={handlePrintLegacy} variant="outline">
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimir Digital
+          </Button>
+  
           {/* Permitir registrar pagos para facturas pendientes, vencidas o parcialmente pagadas */}
           {(invoice.status === 'pending' || invoice.status === 'overdue' || (invoice.status === 'paid' && balance > 0)) && balance > 0 && (
             <Button

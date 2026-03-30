@@ -238,13 +238,13 @@ export const invoicesExtendedAPI = {
         </div>
         <div class="section">
           <div class="info-row"><span>TICKET:</span><span class="bold">#${invoice.id.slice(0, 8).toUpperCase()}</span></div>
-          <div class="info-row"><span>FECHA:</span><span>${new Date(invoice.created_at || now).toLocaleDateString('es-ES')}</span></div>
+          <div class="info-row"><span>FECHA:</span><span>${new Date(invoice.created_at || invoice.createdAt || now).toLocaleDateString('es-ES')}</span></div>
           <div class="info-row">
             <span>ESTADO:</span>
             <span class="status-tag">${invoice.status === 'paid' ? 'PAGADO' : invoice.status === 'pending' ? 'PENDIENTE' : 'VENCIDO'}</span>
           </div>
         </div>
-        <div class="section"><span class="bold">CLIENTE:</span><br>${invoice.client_name || client?.name || 'Consumidor Final'}</div>
+        <div class="section"><span class="bold">CLIENTE:</span><br>${invoice.client_name || invoice.clientName || client?.name || 'Consumidor Final'}</div>
         <table>
           <thead><tr><th>DESC.</th><th style="text-align:right;">TOTAL</th></tr></thead>
           <tbody>
@@ -266,7 +266,7 @@ export const invoicesExtendedAPI = {
             ${invoice.payment_reference ? `REF: ${invoice.payment_reference}` : ''}
           </div>` : ''}
         <div class="footer">
-          <p>Vence: ${invoice.due_date ? new Date(invoice.due_date + 'T00:00:00').toLocaleDateString('es-ES') : '-'}</p>
+          <p>Vence: ${invoice.due_date || invoice.dueDate ? new Date((invoice.due_date || invoice.dueDate) + 'T00:00:00').toLocaleDateString('es-ES') : '-'}</p>
           <p>¡Gracias por su pago!</p>
           <p>Digital+ ISP</p>
           <p>${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')} - ${now.toLocaleDateString()}</p>
@@ -277,9 +277,15 @@ export const invoicesExtendedAPI = {
     `;
     return html;
   },
+
+  // Para compatibilidad con el nombre usado en InvoiceDetail
+  getDigitalInvoice(invoice: any, client?: any) {
+    // Reutiliza la implementación existente para factura imprimible
+    return this.getPrintableInvoice(invoice, client);
+  },
 };
 
-// ==================== BATCH OPERATIONS ====================
+// ==================== BATCH OPERACIONES ====================
 
 export const batchOperationsAPI = {
   async updateOverdueInvoices() {
