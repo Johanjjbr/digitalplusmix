@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Printer, ArrowLeft, DollarSign, Calendar, FileText, CheckCircle, History, Trash2 } from 'lucide-react';
-import { invoicesAPI } from '@/lib/api';
+import { invoicesAPI, clientsAPI } from '@/lib/api';
 import { invoicesExtendedAPI } from '@/lib/api-extended';
 import { paymentsAPI } from '@/lib/api-tickets-zones';
 import { Button } from '@/app/components/ui/button';
@@ -56,6 +56,7 @@ export function InvoiceDetail() {
   const [notes, setNotes] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [paymentPreview, setPaymentPreview] = useState<any>(null);
+  const [clientData, setClientData] = useState<any>(null);
 
   useEffect(() => {
     loadInvoice();
@@ -71,10 +72,14 @@ export function InvoiceDetail() {
       setInvoice(foundInvoice);
 
       // Load payments history
-      if (foundInvoice) {
-        const paymentsResponse = await paymentsAPI.getByInvoice(id);
-        setPayments(paymentsResponse.payments || []);
-      }
+if (foundInvoice) {
+  const [paymentsResponse, clientResponse] = await Promise.all([
+    paymentsAPI.getByInvoice(id),
+    clientsAPI.getOne(foundInvoice.clientId),
+  ]);
+  setPayments(paymentsResponse.payments || []);
+  setClientData(clientResponse.client);
+}
     } catch (error) {
       console.error('Error loading invoice:', error);
       toast.error('Error al cargar la factura');
@@ -109,7 +114,7 @@ export function InvoiceDetail() {
       return;
     }
 
-    const html = getPrintableInvoiceHTML(invoice);
+const html = getPrintableInvoiceHTML(invoice, clientData);
     printWindow.document.write(html);
     printWindow.document.close();
   };

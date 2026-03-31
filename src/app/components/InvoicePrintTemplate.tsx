@@ -178,18 +178,27 @@ export const getPrintableInvoiceHTML = (invoice: any, client?: any): string => {
               <span class="bold">Factura:</span>
               <span>#${invoice.id.slice(0, 8).toUpperCase()}</span>
             </div>
-            <div class="info-row">
-              <span class="bold">Cliente:</span>
-              <span>${invoice.client_name || client?.name || 'Consumidor Final'}</span>
-            </div>
-            <div class="info-row">
-              <span class="bold">Fecha de Emisión:</span>
-              <span>${new Date(invoice.created_at || now).toLocaleDateString('es-ES')}</span>
-            </div>
-            <div class="info-row">
-              <span class="bold">Fecha de Vencimiento:</span>
-              <span>${new Date(invoice.due_date).toLocaleDateString('es-ES')}</span>
-            </div>
+<div class="info-row">
+  <span class="bold">Cliente:</span>
+  <span>${invoice.client_name || client?.name || 'Consumidor Final'}</span>
+</div>
+${(client?.documentNumber || client?.document_number) ? `
+<div class="info-row">
+  <span class="bold">Documento:</span>
+  <span>${client?.documentNumber || client?.document_number}</span>
+</div>` : ''}
+<div class="info-row">
+  <span class="bold">Fecha de Emisión:</span>
+  <span>${new Date(invoice.createdAt || invoice.created_at || now).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+</div>
+<div class="info-row">
+  <span class="bold">Fecha de Vencimiento:</span>
+  <span>${
+    (invoice.dueDate || invoice.due_date)
+      ? new Date((invoice.dueDate || invoice.due_date) + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+      : 'No definida'
+  }</span>
+</div>
             <div class="info-row">
               <span class="bold">Estado:</span>
               <span class="status-badge ${invoice.status === 'paid' ? 'status-paid' : invoice.status === 'pending' ? 'status-pending' : 'status-overdue'}">
