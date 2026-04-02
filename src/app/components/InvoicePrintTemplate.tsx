@@ -168,7 +168,7 @@ export const getPrintableInvoiceHTML = (invoice: any, client?: any): string => {
       <body>
         <div class="container">
           <div class="header">
-            <h1>Digital Plus Mix</h1>
+            <h1>Digital+</h1>
             <p>Servicio de Internet</p>
             <p>Factura Digital</p>
           </div>
