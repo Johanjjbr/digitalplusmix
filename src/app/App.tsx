@@ -16,6 +16,7 @@ import { Zones } from '@/app/components/Zones';
 import { Settings } from '@/app/components/Settings';
 import { AuditLogs } from '@/app/components/AuditLogs';
 import { Login } from '@/app/components/Login';
+import { ActivateUser } from '@/app/components/ActivateUser';
 
 import { lazy, Suspense } from 'react';
 const Users = lazy(() => import('@/app/components/Users').then(module => ({ default: module.Users })));
@@ -48,6 +49,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/activate" element={<ActivateUser />} />
         <Route
           path="/*"
           element={

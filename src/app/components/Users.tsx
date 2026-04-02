@@ -53,6 +53,7 @@ export function Users() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newUserActivation, setNewUserActivation] = useState<{ id: string; email: string } | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
@@ -94,6 +95,7 @@ export function Users() {
       });
     } else {
       setEditingUser(null);
+      setNewUserActivation(null);
       setFormData({
         email: '',
         full_name: '',
@@ -157,6 +159,9 @@ export function Users() {
         }
 
         toast.success('Usuario creado exitosamente');
+        if (result.user) {
+          setNewUserActivation({ id: result.user.id, email: result.user.email });
+        }
       }
 
       setIsDialogOpen(false);
@@ -258,6 +263,64 @@ export function Users() {
           Nuevo Usuario
         </Button>
       </div>
+
+      {newUserActivation && (
+        <Card className="mb-6 border-blue-300">
+          <CardHeader>
+            <CardTitle>Activación de usuario</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Envía el siguiente enlace de activación al usuario o permita que lo escanee desde su celular.
+            </p>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="break-words">
+                <p className="text-xs text-slate-500 mb-1">Enlace de activación</p>
+                <a
+                  href={`${typeof window !== 'undefined' ? window.location.origin : ''}/activate?id=${newUserActivation.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 underline"
+                >
+                  {`${typeof window !== 'undefined' ? window.location.origin : ''}/activate?id=${newUserActivation.id}`}
+                </a>
+              </div>
+              <a
+                href={`${typeof window !== 'undefined' ? window.location.origin : ''}/activate?id=${newUserActivation.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-40 h-40 rounded border border-slate-200 overflow-hidden bg-white"
+              >
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                    `${typeof window !== 'undefined' ? window.location.origin : ''}/activate?id=${newUserActivation.id}`
+                  )}`}
+                  alt="QR de activación"
+                  className="w-full h-full object-cover"
+                />
+              </a>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/activate?id=${newUserActivation.id}`;
+                  navigator.clipboard.writeText(link);
+                  toast.success('Enlace copiado al portapapeles');
+                }}
+              >
+                Copiar enlace
+              </Button>
+              <Button
+                onClick={() => setNewUserActivation(null)}
+                variant="secondary"
+              >
+                Ocultar información de activación
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -129,7 +129,7 @@ export const authService = {
             password_hash: passwordHash,
             full_name: data.full_name,
             role: data.role || 'user',
-            is_active: true,
+            is_active: false,
           },
         ])
         .select()
