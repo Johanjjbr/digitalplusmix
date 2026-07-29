@@ -194,7 +194,7 @@ ${(client?.documentNumber || client?.document_number) ? `
 ${invoice.status === 'paid' && (invoice.paidDate || invoice.paid_date) ? `
 <div class="info-row">
   <span class="bold">Fecha de Pago:</span>
-  <span>${new Date(invoice.paidDate || invoice.paid_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+  <span>${new Date((invoice.paidDate || invoice.paid_date) + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
 </div>` : ''}
 ${invoice.status !== 'paid' ? `
 <div class="info-row">

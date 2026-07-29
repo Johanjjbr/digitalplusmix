@@ -255,7 +255,7 @@ export const invoicesExtendedAPI = {
           <div class="info-row"><span>TICKET:</span><span class="bold">#${invoice.id.slice(0, 8).toUpperCase()}</span></div>
           <div class="info-row"><span>FECHA EMISIÓN:</span><span>${new Date(invoice.created_at || invoice.createdAt || now).toLocaleDateString('es-ES')}</span></div>
           ${(invoice.paid_date || invoice.paidDate) ? `
-          <div class="info-row"><span>FECHA PAGO:</span><span>${new Date(invoice.paid_date || invoice.paidDate).toLocaleDateString('es-ES')}</span></div>` : ''}
+          <div class="info-row"><span>FECHA PAGO:</span><span>${new Date((invoice.paid_date || invoice.paidDate) + 'T00:00:00').toLocaleDateString('es-ES')}</span></div>` : ''}
           <div class="info-row">
             <span>ESTADO:</span>
             <span class="status-tag">${invoice.status === 'paid' ? 'PAGADO' : invoice.status === 'pending' ? 'PENDIENTE' : 'VENCIDO'}</span>
@@ -278,7 +278,7 @@ export const invoicesExtendedAPI = {
           </div>
         </div>
         ${invoice.status === 'paid' && (invoice.paid_date || invoice.paidDate) ? `
-          <div class="info-row"><span>FECHA PAGO:</span><span>${new Date(invoice.paid_date || invoice.paidDate).toLocaleDateString('es-ES')}</span></div>` : ''}
+          <div class="info-row"><span>FECHA PAGO:</span><span>${new Date((invoice.paid_date || invoice.paidDate) + 'T00:00:00').toLocaleDateString('es-ES')}</span></div>` : ''}
         ${invoice.payment_method ? `
           <div class="section" style="margin-top:4mm;">
             <span class="bold">PAGO:</span> ${invoice.payment_method.toUpperCase()}<br>

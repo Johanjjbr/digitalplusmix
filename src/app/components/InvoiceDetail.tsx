@@ -382,7 +382,7 @@ const html = getPrintableInvoiceHTML(invoice, clientData);
                 <label className="text-sm font-medium text-gray-500">Fecha de Pago</label>
                 <p className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
-                  {new Date(invoice.paidDate).toLocaleDateString('es-ES')}
+                  {new Date(invoice.paidDate + 'T00:00:00').toLocaleDateString('es-ES')}
                 </p>
               </div>
             )}

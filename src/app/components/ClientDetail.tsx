@@ -707,7 +707,7 @@ export function ClientDetail() {
                     </TableCell>
                     <TableCell>
                       {record.paidDate
-                        ? new Date(record.paidDate).toLocaleDateString('es-ES', {
+                        ? new Date(record.paidDate + 'T00:00:00').toLocaleDateString('es-ES', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',

@@ -357,7 +357,7 @@ export function Billing() {
                       </TableCell>
                       <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
                         {invoice.paidDate
-                          ? new Date(invoice.paidDate).toLocaleDateString('es-ES', {
+                          ? new Date(invoice.paidDate + 'T00:00:00').toLocaleDateString('es-ES', {
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric',
