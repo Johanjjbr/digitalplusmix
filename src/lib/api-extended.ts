@@ -26,6 +26,14 @@ async function logAudit(
   }
 }
 
+function getLocalDateString(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // ==================== INVOICE EXTENSIONS ====================
 
 interface InvoiceOverrides {
@@ -53,7 +61,7 @@ export const invoicesExtendedAPI = {
       .from('invoices')
       .update({
         status:            'paid',
-        paid_date:         new Date().toISOString().split('T')[0],
+        paid_date:         getLocalDateString(),
         payment_method:    paymentData.paymentMethod,
         payment_reference: paymentData.paymentReference,
         paid_by:           currentUser?.id,
@@ -150,7 +158,7 @@ export const invoicesExtendedAPI = {
       paid_date:
         overrides.paidDate
           ?? (overrides.status === 'paid' || amountPending === 0
-            ? new Date().toISOString().split('T')[0]
+            ? getLocalDateString()
             : null),
       due_date:        dueDate,
       is_monthly_auto: false,
