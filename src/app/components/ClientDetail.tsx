@@ -54,6 +54,7 @@ interface Client {
 interface Invoice {
   id: string;
   createdAt: string;
+  paidDate?: string;
   description: string;
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
@@ -678,7 +679,8 @@ export function ClientDetail() {
             <TableHeader>
               <TableRow className="bg-gray-50">
                 <TableHead className="font-semibold">Factura</TableHead>
-                <TableHead className="font-semibold">Fecha</TableHead>
+                <TableHead className="font-semibold">Emisión</TableHead>
+                <TableHead className="font-semibold">Pago</TableHead>
                 <TableHead className="font-semibold">Descripción</TableHead>
                 <TableHead className="font-semibold text-right">Monto</TableHead>
                 <TableHead className="font-semibold">Estado</TableHead>
@@ -688,7 +690,7 @@ export function ClientDetail() {
             <TableBody>
               {invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     No hay historial de facturación
                   </TableCell>
                 </TableRow>
@@ -702,6 +704,15 @@ export function ClientDetail() {
                         month: 'short',
                         day: 'numeric',
                       })}
+                    </TableCell>
+                    <TableCell>
+                      {record.paidDate
+                        ? new Date(record.paidDate).toLocaleDateString('es-ES', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : '-'}
                     </TableCell>
                     <TableCell>{record.description}</TableCell>
                     <TableCell className="text-right font-medium">

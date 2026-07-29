@@ -32,6 +32,7 @@ interface InvoiceOverrides {
   description?: string;
   amount?:      number;
   dueDate?:     string;
+  paidDate?:    string;
   status?:      'paid' | 'pending' | 'overdue';
   invoiceType?: 'plan' | 'advance' | 'custom';
 }
@@ -146,6 +147,11 @@ export const invoicesExtendedAPI = {
           : amountPending === 0
           ? 'paid'
           : 'pending',
+      paid_date:
+        overrides.paidDate
+          ?? (overrides.status === 'paid' || amountPending === 0
+            ? new Date().toISOString().split('T')[0]
+            : null),
       due_date:        dueDate,
       is_monthly_auto: false,
       amount_paid:     creditBalanceUsed,
@@ -238,7 +244,9 @@ export const invoicesExtendedAPI = {
         </div>
         <div class="section">
           <div class="info-row"><span>TICKET:</span><span class="bold">#${invoice.id.slice(0, 8).toUpperCase()}</span></div>
-          <div class="info-row"><span>FECHA:</span><span>${new Date(invoice.created_at || invoice.createdAt || now).toLocaleDateString('es-ES')}</span></div>
+          <div class="info-row"><span>FECHA EMISIÓN:</span><span>${new Date(invoice.created_at || invoice.createdAt || now).toLocaleDateString('es-ES')}</span></div>
+          ${(invoice.paid_date || invoice.paidDate) ? `
+          <div class="info-row"><span>FECHA PAGO:</span><span>${new Date(invoice.paid_date || invoice.paidDate).toLocaleDateString('es-ES')}</span></div>` : ''}
           <div class="info-row">
             <span>ESTADO:</span>
             <span class="status-tag">${invoice.status === 'paid' ? 'PAGADO' : invoice.status === 'pending' ? 'PENDIENTE' : 'VENCIDO'}</span>
@@ -260,13 +268,15 @@ export const invoicesExtendedAPI = {
             <span class="amount-big">$${Number(invoice.amount).toFixed(2)}</span>
           </div>
         </div>
+        ${invoice.status === 'paid' && (invoice.paid_date || invoice.paidDate) ? `
+          <div class="info-row"><span>FECHA PAGO:</span><span>${new Date(invoice.paid_date || invoice.paidDate).toLocaleDateString('es-ES')}</span></div>` : ''}
         ${invoice.payment_method ? `
           <div class="section" style="margin-top:4mm;">
             <span class="bold">PAGO:</span> ${invoice.payment_method.toUpperCase()}<br>
             ${invoice.payment_reference ? `REF: ${invoice.payment_reference}` : ''}
           </div>` : ''}
         <div class="footer">
-          <p>Vence: ${invoice.due_date || invoice.dueDate ? new Date((invoice.due_date || invoice.dueDate) + 'T00:00:00').toLocaleDateString('es-ES') : '-'}</p>
+          ${invoice.status !== 'paid' ? `<p>Vence: ${invoice.due_date || invoice.dueDate ? new Date((invoice.due_date || invoice.dueDate) + 'T00:00:00').toLocaleDateString('es-ES') : '-'}</p>` : ''}
           <p>¡Gracias por su pago!</p>
           <p>Digital+ ISP</p>
           <p>${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')} - ${now.toLocaleDateString()}</p>

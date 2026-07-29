@@ -360,15 +360,17 @@ const html = getPrintableInvoiceHTML(invoice, clientData);
                 {new Date(invoice.createdAt).toLocaleDateString('es-ES')}
               </p>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500">Fecha de Vencimiento</label>
-              <p className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                {invoice.dueDate && new Date(invoice.dueDate).getFullYear() > 1990
-                  ? new Date(invoice.dueDate).toLocaleDateString('es-ES')
-                  : 'No definida'}
-              </p>
-            </div>
+            {invoice.status !== 'paid' && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Fecha de Vencimiento</label>
+                <p className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  {invoice.dueDate && new Date(invoice.dueDate).getFullYear() > 1990
+                    ? new Date(invoice.dueDate).toLocaleDateString('es-ES')
+                    : 'No definida'}
+                </p>
+              </div>
+            )}
             {invoice.paidDate && (
               <div>
                 <label className="text-sm font-medium text-gray-500">Fecha de Pago</label>

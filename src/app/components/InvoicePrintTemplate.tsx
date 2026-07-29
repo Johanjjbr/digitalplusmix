@@ -191,6 +191,12 @@ ${(client?.documentNumber || client?.document_number) ? `
   <span class="bold">Fecha de Emisión:</span>
   <span>${new Date(invoice.createdAt || invoice.created_at || now).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
 </div>
+${invoice.status === 'paid' && (invoice.paidDate || invoice.paid_date) ? `
+<div class="info-row">
+  <span class="bold">Fecha de Pago:</span>
+  <span>${new Date(invoice.paidDate || invoice.paid_date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+</div>` : ''}
+${invoice.status !== 'paid' ? `
 <div class="info-row">
   <span class="bold">Fecha de Vencimiento:</span>
   <span>${
@@ -198,7 +204,7 @@ ${(client?.documentNumber || client?.document_number) ? `
       ? new Date((invoice.dueDate || invoice.due_date) + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
       : 'No definida'
   }</span>
-</div>
+</div>` : ''}
             <div class="info-row">
               <span class="bold">Estado:</span>
               <span class="status-badge ${invoice.status === 'paid' ? 'status-paid' : invoice.status === 'pending' ? 'status-pending' : 'status-overdue'}">

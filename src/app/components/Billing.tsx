@@ -34,6 +34,7 @@ interface Invoice {
   clientName: string;
   amount: number;
   createdAt: string;
+  paidDate?: string;
   status: 'paid' | 'pending' | 'overdue';
   description: string;
 }
@@ -324,7 +325,8 @@ export function Billing() {
                 <TableHead className="font-semibold">Factura</TableHead>
                 <TableHead className="font-semibold">Cliente</TableHead>
                 <TableHead className="font-semibold">Descripción</TableHead>
-                <TableHead className="font-semibold">Fecha</TableHead>
+                <TableHead className="font-semibold">Emisión</TableHead>
+                <TableHead className="font-semibold">Pago</TableHead>
                 <TableHead className="font-semibold text-right">Monto</TableHead>
                 <TableHead className="font-semibold">Estado</TableHead>
                 <TableHead className="font-semibold text-right">Acciones</TableHead>
@@ -333,7 +335,7 @@ export function Billing() {
             <TableBody>
               {invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                     No hay facturas registradas
                   </TableCell>
                 </TableRow>
@@ -352,6 +354,15 @@ export function Billing() {
                           month: 'short',
                           day: 'numeric',
                         })}
+                      </TableCell>
+                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
+                        {invoice.paidDate
+                          ? new Date(invoice.paidDate).toLocaleDateString('es-ES', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                          : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium" onClick={() => handleInvoiceClick(invoice.id)}>
                         ${invoice.amount.toFixed(2)}
