@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { authService } from './auth';
+import { getLocalDateString } from './api-extended';
 import type { Ticket, TicketComment, Zone, Payment } from './supabase';
 
 // Helper to convert snake_case to camelCase
@@ -322,7 +323,7 @@ export const paymentsAPI = {
       payment_reference: payment.paymentReference,
       notes: payment.notes,
       paid_by: currentUser?.id,
-      payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+      payment_date: payment.paymentDate || getLocalDateString(),
     };
 
     const { data, error } = await supabase
@@ -369,6 +370,11 @@ export const paymentsAPI = {
       const amountForCurrentInvoice = Math.min(remainingAmount, currentBalance);
       
       if (amountForCurrentInvoice > 0) {
+        if (amountForCurrentInvoice >= currentBalance) {
+          await supabase.from('invoices')
+            .update({ paid_date: getLocalDateString() })
+            .eq('id', invoiceId);
+        }
         const paymentData = {
           invoice_id: invoiceId,
           client_id: clientId,
@@ -377,7 +383,7 @@ export const paymentsAPI = {
           payment_reference: paymentReference,
           notes: notes,
           paid_by: currentUser?.id,
-          payment_date: new Date().toISOString().split('T')[0],
+          payment_date: getLocalDateString(),
         };
 
         const { data: payment, error: paymentError } = await supabase
@@ -418,6 +424,11 @@ export const paymentsAPI = {
 
           const amountForInvoice = Math.min(remainingAmount, invoiceBalance);
 
+          if (amountForInvoice >= invoiceBalance) {
+            await supabase.from('invoices')
+              .update({ paid_date: getLocalDateString() })
+              .eq('id', invoice.id);
+          }
           const paymentData = {
             invoice_id: invoice.id,
             client_id: clientId,
@@ -426,7 +437,7 @@ export const paymentsAPI = {
             payment_reference: paymentReference,
             notes: `Pago aplicado automáticamente desde excedente`,
             paid_by: currentUser?.id,
-            payment_date: new Date().toISOString().split('T')[0],
+            payment_date: getLocalDateString(),
           };
 
           const { data: payment, error: paymentError } = await supabase
@@ -529,7 +540,7 @@ export const paymentsAPI = {
 
   // Obtener todos los pagos de hoy
   async getToday() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     return this.getByDate(today);
   },
 };

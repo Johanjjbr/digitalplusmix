@@ -31,7 +31,10 @@ export function MonthlyInvoiceDialog({ open, onOpenChange, onSubmit, clients }: 
     if (open) {
       const today = new Date();
       const due = new Date(today.getFullYear(), today.getMonth(), 10);
-      setDueDate(due.toISOString().split('T')[0]);
+      const y = due.getFullYear();
+      const m = String(due.getMonth() + 1).padStart(2, '0');
+      const day = String(due.getDate()).padStart(2, '0');
+      setDueDate(`${y}-${m}-${day}`);
     }
   }, [open]);
 

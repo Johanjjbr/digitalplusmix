@@ -50,9 +50,10 @@ interface Payment {
 export function DailyReport() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
 
   useEffect(() => {
     loadPayments();
@@ -72,7 +73,8 @@ export function DailyReport() {
   };
 
   const handleLoadToday = () => {
-    setSelectedDate(new Date().toISOString().split('T')[0]);
+    const d = new Date();
+    setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
   };
 
   const getPaymentMethodLabel = (method: string) => {

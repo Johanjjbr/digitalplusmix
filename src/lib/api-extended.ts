@@ -26,7 +26,7 @@ async function logAudit(
   }
 }
 
-function getLocalDateString(): string {
+export function getLocalDateString(): string {
   const d = new Date();
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -104,9 +104,10 @@ export const invoicesExtendedAPI = {
     //    - Si el formulario manda un dueDate (advance o custom) se respeta.
     //    - Si no, se usa el día 10 del mes actual (tipo 'plan').
     const now = new Date();
-    const fallbackDueDate = new Date(now.getFullYear(), now.getMonth(), 10)
-      .toISOString()
-      .split('T')[0];
+    const fallbackDueDate = (() => {
+      const d = new Date(now.getFullYear(), now.getMonth(), 10);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
 
     const dueDate = overrides.dueDate ?? fallbackDueDate;
 

@@ -119,7 +119,7 @@ export const clientsAPI = {
       status: client.status || 'active',
       connection_status: client.connectionStatus || 'offline',
       monthly_fee: client.monthlyFee,
-      join_date: client.joinDate || new Date().toISOString().split('T')[0],
+      join_date: client.joinDate || (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(),
       latitude: client.latitude,
       longitude: client.longitude,
       next_billing_date: client.nextBillingDate,

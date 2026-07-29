@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Printer, ArrowLeft, DollarSign, Calendar, FileText, CheckCircle, History, Trash2 } from 'lucide-react';
 import { invoicesAPI, clientsAPI } from '@/lib/api';
-import { invoicesExtendedAPI } from '@/lib/api-extended';
+import { invoicesExtendedAPI, getLocalDateString } from '@/lib/api-extended';
 import { paymentsAPI } from '@/lib/api-tickets-zones';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
@@ -129,8 +129,14 @@ const html = getPrintableInvoiceHTML(invoice, clientData);
     }
 
     const balance = invoice.balance || (invoice.amount - (invoice.amountPaid || 0));
+    const isFullyPaid = amount >= balance;
 
     try {
+      // Pre-set paid_date con fecha local ANTES del trigger de BD (que usa UTC)
+      if (isFullyPaid) {
+        await invoicesAPI.update(id, { paidDate: getLocalDateString() });
+      }
+
       // Si el monto es mayor al balance, usar la API con excedente
       if (amount > balance) {
         const result = await paymentsAPI.createWithExcess(
