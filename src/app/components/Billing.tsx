@@ -1,12 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { DollarSign, TrendingUp, Clock, Plus, RefreshCw, Calendar, Trash2 } from 'lucide-react';
+import {
+  DollarSign,
+  Clock,
+  Plus,
+  RefreshCw,
+  Calendar,
+  Trash2,
+  MessageCircle,
+  Copy,
+  CheckCircle2,
+  AlertTriangle,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { invoicesAPI, clientsAPI } from '@/lib/api';
-import { invoicesExtendedAPI, batchOperationsAPI } from '@/lib/api-extended';
+import {
+  invoicesExtendedAPI,
+  batchOperationsAPI,
+  paymentSettingsAPI,
+  formatPeriod,
+  type PaymentSettings,
+} from '@/lib/api-extended';
+import {
+  buildReminderMessage,
+  invoiceMonthLabel,
+  normalizePhone,
+  pendingAmount,
+  sortByPeriod,
+  whatsappLink,
+} from '@/lib/whatsapp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -33,8 +60,12 @@ interface Invoice {
   clientId: string;
   clientName: string;
   amount: number;
+  amountPaid?: number | null;
+  balance?: number | null;
   createdAt: string;
-  paidDate?: string;
+  dueDate?: string | null;
+  paidDate?: string | null;
+  billingPeriod?: string | null;
   status: 'paid' | 'pending' | 'overdue';
   description: string;
 }
@@ -42,21 +73,40 @@ interface Invoice {
 interface Client {
   id: string;
   name: string;
+  phone?: string;
   monthlyFee: number;
   planName?: string;
   status?: 'active' | 'suspended' | 'delinquent';
 }
 
+interface Debtor {
+  client: Client | undefined;
+  clientId: string;
+  clientName: string;
+  invoices: Invoice[];
+  total: number;
+  overdueCount: number;
+}
+
+const periodKey = (inv: Invoice) =>
+  inv.billingPeriod?.slice(0, 7) || (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
+
 export function Billing() {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isMonthlyDialogOpen, setIsMonthlyDialogOpen] = useState(false);
   const [generatingMonthly, setGeneratingMonthly] = useState(false);
+  const [runningMaintenance, setRunningMaintenance] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
+  const [monthFilter, setMonthFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [debtorFilter, setDebtorFilter] = useState<'overdue' | 'all'>('overdue');
+  const [sentTo, setSentTo] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -65,13 +115,14 @@ export function Billing() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [invoicesResponse, clientsResponse] = await Promise.all([
+      const [invoicesResponse, clientsResponse, settings] = await Promise.all([
         invoicesAPI.getAll(),
         clientsAPI.getAll(),
+        paymentSettingsAPI.get().catch(() => null),
       ]);
-      console.log('Facturas cargadas:', invoicesResponse.invoices);
       setInvoices(invoicesResponse.invoices || []);
       setClients(clientsResponse.clients || []);
+      setPaymentSettings(settings);
     } catch (error) {
       console.error('Error loading billing data:', error);
       toast.error('Error al cargar los datos de facturación');
@@ -82,66 +133,80 @@ export function Billing() {
 
   const handleCreateInvoice = async (data: any) => {
     try {
-      console.log('Datos de factura a crear:', data);
-      await invoicesAPI.create(data);
+      // Mismo camino que la ficha del cliente: aplica saldo a favor y
+      // no deja crear dos facturas del mismo mes.
+      await invoicesExtendedAPI.generateForClient(data.clientId, {
+        description: data.description,
+        amount:      data.amount,
+        dueDate:     data.dueDate,
+        status:      data.status,
+        invoiceType: data.invoiceType,
+      });
       toast.success('Factura creada exitosamente');
       setIsCreateDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating invoice:', error);
-      toast.error('Error al crear la factura');
+      toast.error(error?.message || 'Error al crear la factura');
     }
   };
 
-  const handleGenerateMonthlyInvoices = async (data: { clientIds: string[]; dueDate: string }) => {
+  const handleGenerateMonthlyInvoices = async (data: { clientIds: string[]; dueDate: string; period: string }) => {
+    if (generatingMonthly) return; // evita doble clic
     try {
       setGeneratingMonthly(true);
-      
-      // Generar facturas para los clientes seleccionados
-      const promises = data.clientIds.map(async (clientId) => {
-        const client = clients.find(c => c.id === clientId);
-        if (!client) return null;
-        
-        // Validar que el cliente tenga un monthlyFee definido
-        if (!client.monthlyFee || client.monthlyFee <= 0) {
-          console.warn(`Cliente ${client.name} no tiene un monthlyFee válido, saltando...`);
-          return null;
-        }
-        
-        return invoicesAPI.create({
-          clientId,
-          clientName: client.name,
-          amount: client.monthlyFee,
-          description: `Servicio Mensual ${client.planName ? `- Plan ${client.planName}` : ''} - ${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
-          status: 'pending',
-          dueDate: data.dueDate,
-        });
+      const result = await invoicesExtendedAPI.generateMonthlyInvoices({
+        period: data.period,
+        clientIds: data.clientIds,
+        dueDate: data.dueDate,
       });
-      
-      const results = await Promise.all(promises);
-      const successCount = results.filter(r => r !== null).length;
-      
-      toast.success(`${successCount} factura(s) generada(s) exitosamente`);
+
+      const monthName = formatPeriod(result.period);
+      if (result.created > 0) {
+        toast.success(
+          `${result.created} factura(s) de ${monthName} generada(s)` +
+            (result.skipped > 0 ? ` · ${result.skipped} ya tenían ese mes y no se duplicaron` : '')
+        );
+      } else {
+        toast.info(`No se creó ninguna factura: esos clientes ya tienen ${monthName}`);
+      }
       setIsMonthlyDialogOpen(false);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating monthly invoices:', error);
-      toast.error('Error al generar las facturas mensuales');
+      toast.error(error?.message || 'Error al generar las facturas mensuales');
     } finally {
       setGeneratingMonthly(false);
     }
   };
 
   const handleRunMaintenance = async () => {
+    if (runningMaintenance) return;
     try {
-      const result = await batchOperationsAPI.runMaintenance();
+      setRunningMaintenance(true);
+      const r = await batchOperationsAPI.runMaintenance();
       toast.success(
-        `Mantenimiento completado:\n- ${result.overdueInvoices} facturas marcadas como vencidas\n- ${result.delinquentClients} clientes marcados como morosos`
+        <div>
+          <p className="font-semibold">Mantenimiento completado</p>
+          <ul className="mt-1 text-sm space-y-0.5">
+            <li>• {r.invoicesCreated} factura(s) nueva(s) del mes</li>
+            <li>• {r.overdueInvoices} factura(s) marcada(s) como vencida(s)</li>
+            <li>• {r.delinquentClients} cliente(s) pasaron a moroso</li>
+            <li>• {r.reactivatedClients} cliente(s) volvieron a estar al día</li>
+          </ul>
+        </div>,
+        { duration: 7000 }
       );
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error running maintenance:', error);
-      toast.error('Error al ejecutar el mantenimiento');
+      toast.error(
+        error?.message?.includes('run_billing_maintenance')
+          ? 'Falta ejecutar FIX_FACTURACION_Y_WHATSAPP.sql en Supabase'
+          : 'Error al ejecutar el mantenimiento'
+      );
+    } finally {
+      setRunningMaintenance(false);
     }
   };
 
@@ -164,55 +229,107 @@ export function Billing() {
     }
   };
 
-  const calculateStats = () => {
+  // ---------- Estadísticas ----------
+  const stats = useMemo(() => {
     const totalRevenue = invoices
       .filter((inv) => inv.status === 'paid')
-      .reduce((sum, inv) => sum + inv.amount, 0);
+      .reduce((sum, inv) => sum + Number(inv.amount), 0);
 
-    const pendingAmount = invoices
+    const pendingTotal = invoices
       .filter((inv) => inv.status === 'pending' || inv.status === 'overdue')
-      .reduce((sum, inv) => sum + inv.amount, 0);
+      .reduce((sum, inv) => sum + pendingAmount(inv), 0);
 
-    const thisMonth = new Date().getMonth();
-    const thisYear = new Date().getFullYear();
-    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
-    const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+    const withDebt = new Set(
+      invoices.filter((i) => i.status === 'overdue' && pendingAmount(i) > 0).map((i) => i.clientId)
+    );
+    const billable = clients.filter((c) => c.status !== 'suspended');
+    const upToDate = billable.filter((c) => !withDebt.has(c.id)).length;
 
-    const thisMonthRevenue = invoices
-      .filter((inv) => {
-        const invDate = new Date(inv.createdAt);
-        return (
-          inv.status === 'paid' &&
-          invDate.getMonth() === thisMonth &&
-          invDate.getFullYear() === thisYear
-        );
-      })
-      .reduce((sum, inv) => sum + inv.amount, 0);
+    return { totalRevenue, pendingTotal, upToDate, delinquent: withDebt.size };
+  }, [invoices, clients]);
 
-    const lastMonthRevenue = invoices
-      .filter((inv) => {
-        const invDate = new Date(inv.createdAt);
-        return (
-          inv.status === 'paid' &&
-          invDate.getMonth() === lastMonth &&
-          invDate.getFullYear() === lastMonthYear
-        );
-      })
-      .reduce((sum, inv) => sum + inv.amount, 0);
+  // ---------- Lista de facturas ordenada por mes ----------
+  const months = useMemo(
+    () => Array.from(new Set(invoices.map(periodKey).filter(Boolean))).sort().reverse(),
+    [invoices]
+  );
 
-    const growth =
-      lastMonthRevenue > 0
-        ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
-        : 0;
+  const visibleInvoices = useMemo(() => {
+    return invoices
+      .filter((inv) => monthFilter === 'all' || periodKey(inv) === monthFilter)
+      .filter((inv) => statusFilter === 'all' || inv.status === statusFilter)
+      .sort((a, b) => {
+        const byMonth = periodKey(b).localeCompare(periodKey(a)); // mes más reciente primero
+        if (byMonth !== 0) return byMonth;
+        return (a.clientName || '').localeCompare(b.clientName || '');
+      });
+  }, [invoices, monthFilter, statusFilter]);
 
-    return {
-      totalRevenue,
-      pendingAmount,
-      growth,
-    };
+  // ---------- Clientes por cobrar ----------
+  const debtors = useMemo<Debtor[]>(() => {
+    const byClient = new Map<string, Invoice[]>();
+    invoices
+      .filter((i) => (i.status === 'pending' || i.status === 'overdue') && pendingAmount(i) > 0)
+      .forEach((i) => {
+        const list = byClient.get(i.clientId) || [];
+        list.push(i);
+        byClient.set(i.clientId, list);
+      });
+
+    const list: Debtor[] = [];
+    byClient.forEach((invs, clientId) => {
+      const client = clients.find((c) => c.id === clientId);
+      const ordered = sortByPeriod(invs);
+      list.push({
+        client,
+        clientId,
+        clientName: client?.name || invs[0].clientName,
+        invoices: ordered,
+        total: ordered.reduce((s, i) => s + pendingAmount(i), 0),
+        overdueCount: ordered.filter((i) => i.status === 'overdue').length,
+      });
+    });
+
+    return list
+      .filter((d) => debtorFilter === 'all' || d.overdueCount > 0)
+      .sort((a, b) => b.overdueCount - a.overdueCount || a.clientName.localeCompare(b.clientName));
+  }, [invoices, clients, debtorFilter]);
+
+  const paymentDataMissing =
+    !paymentSettings || !paymentSettings.pmBank || !paymentSettings.pmPhone || !paymentSettings.pmIdNumber;
+
+  const messageFor = (d: Debtor) =>
+    buildReminderMessage(
+      d.clientName,
+      d.invoices,
+      paymentSettings || {
+        pmBank: '',
+        pmPhone: '',
+        pmIdNumber: '',
+        pmHolder: '',
+        whatsappCountryCode: '58',
+        whatsappTemplate: '',
+      }
+    );
+
+  const handleSendWhatsApp = (d: Debtor) => {
+    const phone = normalizePhone(d.client?.phone, paymentSettings?.whatsappCountryCode);
+    if (!phone) {
+      toast.error(`${d.clientName} no tiene un teléfono válido. Edítalo en la ficha del cliente.`);
+      return;
+    }
+    window.open(whatsappLink(phone, messageFor(d)), '_blank', 'noopener');
+    setSentTo((prev) => new Set(prev).add(d.clientId));
   };
 
-  const stats = calculateStats();
+  const handleCopyMessage = async (d: Debtor) => {
+    try {
+      await navigator.clipboard.writeText(messageFor(d));
+      toast.success('Mensaje copiado');
+    } catch {
+      toast.error('No se pudo copiar el mensaje');
+    }
+  };
 
   const getBadge = (status: string) => {
     switch (status) {
@@ -237,19 +354,20 @@ export function Billing() {
 
   return (
     <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-gray-900 mb-2">Facturación</h1>
           <p className="text-gray-600">Gestión de pagos y facturación</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleRunMaintenance}
             variant="outline"
-            title="Actualizar facturas vencidas y clientes morosos"
+            disabled={runningMaintenance}
+            title="Genera las facturas que falten del mes (sin duplicar) y actualiza vencidas, morosos y clientes al día"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Mantenimiento
+            <RefreshCw className={`w-4 h-4 mr-2 ${runningMaintenance ? 'animate-spin' : ''}`} />
+            {runningMaintenance ? 'Procesando...' : 'Mantenimiento'}
           </Button>
           <Button
             onClick={() => setIsMonthlyDialogOpen(true)}
@@ -272,9 +390,7 @@ export function Billing() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Ingresos Totales
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Ingresos Totales</CardTitle>
             <div className="p-2 rounded-lg bg-green-100">
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
@@ -286,109 +402,284 @@ export function Billing() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Facturas Pendientes
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Por Cobrar</CardTitle>
             <div className="p-2 rounded-lg bg-yellow-100">
               <Clock className="w-5 h-5 text-yellow-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold">${stats.pendingAmount.toFixed(2)}</div>
+            <div className="text-2xl font-semibold">${stats.pendingTotal.toFixed(2)}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Crecimiento</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Clientes</CardTitle>
             <div className="p-2 rounded-lg bg-blue-100">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <Users className="w-5 h-5 text-blue-600" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">
-              {stats.growth > 0 ? '+' : ''}
-              {stats.growth.toFixed(1)}%
+              <span className="text-green-600">{stats.upToDate}</span>
+              <span className="text-sm font-normal text-gray-500"> al día · </span>
+              <span className="text-red-600">{stats.delinquent}</span>
+              <span className="text-sm font-normal text-gray-500"> morosos</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Facturas Recientes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50">
-                <TableHead className="font-semibold">Factura</TableHead>
-                <TableHead className="font-semibold">Cliente</TableHead>
-                <TableHead className="font-semibold">Descripción</TableHead>
-                <TableHead className="font-semibold">Emisión</TableHead>
-                <TableHead className="font-semibold">Pago</TableHead>
-                <TableHead className="font-semibold text-right">Monto</TableHead>
-                <TableHead className="font-semibold">Estado</TableHead>
-                <TableHead className="font-semibold text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                    No hay facturas registradas
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invoices
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .slice(0, 20)
-                  .map((invoice) => (
-                    <TableRow key={invoice.id} className="hover:bg-gray-50 cursor-pointer">
-                      <TableCell className="font-mono text-sm" onClick={() => handleInvoiceClick(invoice.id)}>{invoice.id}</TableCell>
-                      <TableCell className="font-medium" onClick={() => handleInvoiceClick(invoice.id)}>{invoice.clientName}</TableCell>
-                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>{invoice.description}</TableCell>
-                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
-                        {new Date(invoice.createdAt).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </TableCell>
-                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>
-                        {invoice.paidDate
-                          ? new Date(invoice.paidDate + 'T00:00:00').toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                            })
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-medium" onClick={() => handleInvoiceClick(invoice.id)}>
-                        ${invoice.amount.toFixed(2)}
-                      </TableCell>
-                      <TableCell onClick={() => handleInvoiceClick(invoice.id)}>{getBadge(invoice.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setInvoiceToDelete(invoice.id);
-                            setIsDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+      <Tabs defaultValue="invoices">
+        <TabsList className="mb-4">
+          <TabsTrigger value="invoices">Facturas</TabsTrigger>
+          <TabsTrigger value="debtors">
+            Por cobrar / WhatsApp
+            {stats.delinquent > 0 && (
+              <span className="ml-2 rounded-full bg-red-500 text-white text-xs px-2">{stats.delinquent}</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ================= FACTURAS ================= */}
+        <TabsContent value="invoices">
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+              <CardTitle>Facturas por mes</CardTitle>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="border rounded-md px-3 py-2 text-sm bg-white"
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                >
+                  <option value="all">Todos los meses</option>
+                  {months.map((m) => (
+                    <option key={m} value={m}>
+                      {formatPeriod(`${m}-01`)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="border rounded-md px-3 py-2 text-sm bg-white"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value="paid">Pagadas</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="overdue">Vencidas</option>
+                </select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="font-semibold">Mes</TableHead>
+                    <TableHead className="font-semibold">Cliente</TableHead>
+                    <TableHead className="font-semibold">Descripción</TableHead>
+                    <TableHead className="font-semibold">Emisión</TableHead>
+                    <TableHead className="font-semibold">Pago</TableHead>
+                    <TableHead className="font-semibold text-right">Monto</TableHead>
+                    <TableHead className="font-semibold text-right">Pendiente</TableHead>
+                    <TableHead className="font-semibold">Estado</TableHead>
+                    <TableHead className="font-semibold text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleInvoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                        No hay facturas para este filtro
                       </TableCell>
                     </TableRow>
-                  ))
+                  ) : (
+                    visibleInvoices.slice(0, 300).map((invoice) => (
+                      <TableRow
+                        key={invoice.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleInvoiceClick(invoice.id)}
+                      >
+                        <TableCell className="whitespace-nowrap font-medium">
+                          {invoice.billingPeriod ? (
+                            formatPeriod(invoice.billingPeriod)
+                          ) : (
+                            <span className="text-gray-400 text-sm">Suelta</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">{invoice.clientName}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{invoice.description}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(invoice.createdAt).toLocaleDateString('es-ES', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {invoice.paidDate
+                            ? new Date(`${invoice.paidDate.slice(0, 10)}T00:00:00`).toLocaleDateString('es-ES', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${Number(invoice.amount).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {invoice.status === 'paid' ? '-' : `$${pendingAmount(invoice).toFixed(2)}`}
+                        </TableCell>
+                        <TableCell>{getBadge(invoice.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInvoiceToDelete(invoice.id);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              {visibleInvoices.length > 300 && (
+                <p className="text-sm text-gray-500 mt-3">
+                  Mostrando 300 de {visibleInvoices.length}. Filtra por mes para ver el resto.
+                </p>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ================= POR COBRAR / WHATSAPP ================= */}
+        <TabsContent value="debtors">
+          {paymentDataMissing && (
+            <div className="mb-4 flex items-start gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0" />
+              <div className="flex-1">
+                Faltan los datos de Pago Móvil (banco, teléfono, cédula/RIF). Cárgalos en{' '}
+                <button className="underline font-medium" onClick={() => navigate('/settings')}>
+                  Configuración
+                </button>{' '}
+                para que salgan en el mensaje.
+              </div>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+              <CardTitle>Clientes con pagos pendientes</CardTitle>
+              <select
+                className="border rounded-md px-3 py-2 text-sm bg-white"
+                value={debtorFilter}
+                onChange={(e) => setDebtorFilter(e.target.value as 'overdue' | 'all')}
+              >
+                <option value="overdue">Solo morosos (con meses vencidos)</option>
+                <option value="all">Todos los que deben algo</option>
+              </select>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="font-semibold">Cliente</TableHead>
+                    <TableHead className="font-semibold">Teléfono</TableHead>
+                    <TableHead className="font-semibold">Meses pendientes</TableHead>
+                    <TableHead className="font-semibold text-right">Total</TableHead>
+                    <TableHead className="font-semibold text-right">Avisar</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {debtors.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                        {debtorFilter === 'overdue'
+                          ? 'No hay clientes morosos. ¡Todos al día!'
+                          : 'Nadie tiene pagos pendientes'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    debtors.map((d) => {
+                      const phone = normalizePhone(d.client?.phone, paymentSettings?.whatsappCountryCode);
+                      return (
+                        <TableRow key={d.clientId}>
+                          <TableCell
+                            className="font-medium cursor-pointer hover:underline"
+                            onClick={() => navigate(`/clients/${d.clientId}`)}
+                          >
+                            {d.clientName}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {d.client?.phone || <span className="text-red-500">Sin teléfono</span>}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {d.invoices.map((inv) => (
+                                <span
+                                  key={inv.id}
+                                  className={`text-xs px-2 py-0.5 rounded-full ${
+                                    inv.status === 'overdue'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}
+                                  title={`$${pendingAmount(inv).toFixed(2)}`}
+                                >
+                                  {invoiceMonthLabel(inv)}
+                                </span>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">${d.total.toFixed(2)}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Copiar mensaje"
+                              onClick={() => handleCopyMessage(d)}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={!phone}
+                              className={
+                                sentTo.has(d.clientId)
+                                  ? 'bg-gray-400 hover:bg-gray-500'
+                                  : 'bg-green-600 hover:bg-green-700'
+                              }
+                              onClick={() => handleSendWhatsApp(d)}
+                            >
+                              {sentTo.has(d.clientId) ? (
+                                <CheckCircle2 className="w-4 h-4 mr-1" />
+                              ) : (
+                                <MessageCircle className="w-4 h-4 mr-1" />
+                              )}
+                              {sentTo.has(d.clientId) ? 'Enviado' : 'WhatsApp'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+              <p className="text-xs text-gray-500 mt-3">
+                El botón abre WhatsApp con el mensaje listo (nombre, meses pendientes, monto y datos de
+                Pago Móvil). Solo tienes que presionar enviar.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <InvoiceFormDialog
         open={isCreateDialogOpen}
@@ -401,7 +692,13 @@ export function Billing() {
         open={isMonthlyDialogOpen}
         onOpenChange={setIsMonthlyDialogOpen}
         onSubmit={handleGenerateMonthlyInvoices}
-        clients={clients.map(c => ({
+        submitting={generatingMonthly}
+        invoices={invoices.map((i) => ({
+          clientId: i.clientId,
+          billingPeriod: i.billingPeriod,
+          status: i.status,
+        }))}
+        clients={clients.map((c) => ({
           id: c.id,
           name: c.name,
           planName: c.planName || 'Sin plan',
@@ -420,10 +717,7 @@ export function Billing() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={handleDeleteInvoice}
-            >
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteInvoice}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

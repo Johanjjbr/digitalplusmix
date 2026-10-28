@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
 import { authService } from './auth';
+import { toPeriodStart, formatPeriod } from './billing-period';
+
+export { toPeriodStart, formatPeriod };
 
 // ==================== AUDIT LOGGING ====================
 
@@ -111,6 +114,35 @@ export const invoicesExtendedAPI = {
 
     const dueDate = overrides.dueDate ?? fallbackDueDate;
 
+    // 2b. Mes que cubre la factura (evita facturar dos veces el mismo mes)
+    //    - plan      -> mes actual
+    //    - adelanto  -> el mes elegido (sale del vencimiento: día 10 de ese mes)
+    //    - personalizada -> no es mensual, no se controla
+    const invoiceType = overrides.invoiceType ?? 'plan';
+    const billingPeriod =
+      invoiceType === 'plan'
+        ? toPeriodStart()
+        : invoiceType === 'advance'
+        ? toPeriodStart(dueDate)
+        : null;
+
+    if (billingPeriod) {
+      const { data: existing } = await supabase
+        .from('invoices')
+        .select('id, status')
+        .eq('client_id', clientId)
+        .eq('billing_period', billingPeriod)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error(
+          existing.status === 'paid'
+            ? `${formatPeriod(billingPeriod)} ya está pagado para este cliente. No se creó otra factura.`
+            : `Este cliente ya tiene la factura de ${formatPeriod(billingPeriod)} (pendiente). No se creó otra.`
+        );
+      }
+    }
+
     // 3. Monto base: el del formulario si viene, si no el del plan
     const baseAmount = overrides.amount ?? client.monthly_fee;
 
@@ -165,6 +197,7 @@ export const invoicesExtendedAPI = {
       is_monthly_auto: false,
       amount_paid:     creditBalanceUsed,
       balance:         amountPending,
+      billing_period:  billingPeriod,
     };
 
     const { data, error } = await supabase
@@ -173,7 +206,12 @@ export const invoicesExtendedAPI = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505' && error.message.includes('uq_invoices_client_period')) {
+        throw new Error(`Este cliente ya tiene la factura de ${formatPeriod(billingPeriod)}. No se creó otra.`);
+      }
+      throw error;
+    }
 
     // 7. Actualizar saldo a favor del cliente si se usó algo
     if (creditBalanceUsed > 0) {
@@ -203,18 +241,34 @@ export const invoicesExtendedAPI = {
     };
   },
 
-  async generateMonthlyInvoices() {
-    const { data, error } = await supabase.rpc('generate_monthly_invoices');
+  // Genera las facturas de un mes. Los clientes que ya tienen ese mes
+  // (pagado o no) se saltean y se devuelven como `skipped`.
+  async generateMonthlyInvoices(options: { period?: string; clientIds?: string[]; dueDate?: string } = {}) {
+    const periodStart = toPeriodStart(options.period);
+
+    const { data, error } = await supabase.rpc('generate_monthly_invoices', {
+      p_period:     periodStart,
+      p_client_ids: options.clientIds && options.clientIds.length > 0 ? options.clientIds : null,
+      p_due_date:   options.dueDate || null,
+      p_manual:     true,
+    });
+
     if (error) throw error;
 
-    await logAudit(
-      'create',
-      'invoices',
-      'bulk',
-      `Facturas mensuales generadas (${data?.length || 0})`
-    );
+    const result  = (Array.isArray(data) ? data[0] : data) || {};
+    const created = result.invoices_created || 0;
+    const skipped = result.skipped_existing || 0;
 
-    return { invoices: data || [], count: data?.length || 0 };
+    if (created > 0) {
+      await logAudit(
+        'create',
+        'invoices',
+        null as any,
+        `Facturas ${formatPeriod(periodStart)}: ${created} creadas, ${skipped} ya existían`
+      );
+    }
+
+    return { created, skipped, totalAmount: Number(result.total_amount || 0), period: periodStart };
   },
 
   getPrintableInvoice(invoice: any, client?: any) {
@@ -304,36 +358,87 @@ export const invoicesExtendedAPI = {
   },
 };
 
-// ==================== BATCH OPERACIONES ====================
+// ==================== BATCH OPERATIONS ====================
 
 export const batchOperationsAPI = {
-  async updateOverdueInvoices() {
-    const { data, error } = await supabase.rpc('update_overdue_invoices');
-    if (error) throw error;
-    return { updated: data || [], count: data?.length || 0 };
-  },
-
-  async updateDelinquentClients() {
-    const { data, error } = await supabase.rpc('update_delinquent_clients');
-    if (error) throw error;
-    return { updated: data || [], count: data?.length || 0 };
-  },
-
+  // Genera lo que falte del mes (sin duplicar), marca facturas vencidas,
+  // pasa a moroso a quien debe y devuelve a "al día" a quien ya pagó.
   async runMaintenance() {
-    const overdueInvoices    = await this.updateOverdueInvoices();
-    const delinquentClients  = await this.updateDelinquentClients();
+    const { data, error } = await supabase.rpc('run_billing_maintenance');
+
+    if (error) throw error;
+
+    const result = {
+      invoicesCreated: data?.invoices_created || 0,
+      invoicesSkipped: data?.invoices_skipped || 0,
+      overdueInvoices: data?.overdue_invoices || 0,
+      delinquentClients: data?.delinquent_clients || 0,
+      reactivatedClients: data?.reactivated_clients || 0,
+    };
 
     await logAudit(
       'update',
       'system',
-      'maintenance',
-      `Mantenimiento: ${overdueInvoices.count} facturas vencidas, ${delinquentClients.count} clientes morosos`
+      null as any,
+      `Mantenimiento: ${result.invoicesCreated} facturas nuevas, ${result.overdueInvoices} vencidas, ${result.delinquentClients} morosos, ${result.reactivatedClients} al día`
     );
 
+    return result;
+  },
+};
+
+// ==================== PAYMENT / WHATSAPP SETTINGS ====================
+
+export interface PaymentSettings {
+  pmBank: string;
+  pmPhone: string;
+  pmIdNumber: string;
+  pmHolder: string;
+  whatsappCountryCode: string;
+  whatsappTemplate: string;
+}
+
+export const paymentSettingsAPI = {
+  async get(): Promise<PaymentSettings> {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
     return {
-      overdueInvoices:   overdueInvoices.count,
-      delinquentClients: delinquentClients.count,
+      pmBank: data?.pm_bank || '',
+      pmPhone: data?.pm_phone || '',
+      pmIdNumber: data?.pm_id_number || '',
+      pmHolder: data?.pm_holder || '',
+      whatsappCountryCode: data?.whatsapp_country_code || '58',
+      whatsappTemplate: data?.whatsapp_template || '',
     };
+  },
+
+  async save(settings: PaymentSettings) {
+    const payload = {
+      pm_bank: settings.pmBank,
+      pm_phone: settings.pmPhone,
+      pm_id_number: settings.pmIdNumber,
+      pm_holder: settings.pmHolder,
+      whatsapp_country_code: settings.whatsappCountryCode.replace(/\D/g, '') || '58',
+      whatsapp_template: settings.whatsappTemplate,
+    };
+
+    const { data: existing } = await supabase
+      .from('system_settings')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    const { error } = existing
+      ? await supabase.from('system_settings').update(payload).eq('id', existing.id)
+      : await supabase.from('system_settings').insert([payload]);
+
+    if (error) throw error;
   },
 };
 
@@ -373,4 +478,4 @@ export const auditLogsAPI = {
   },
 };
 
-export { logAudit };
+export { logAudit };

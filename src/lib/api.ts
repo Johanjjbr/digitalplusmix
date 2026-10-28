@@ -10,6 +10,7 @@ interface InvoiceInput {
   status?: string;
   dueDate?: string;
   paidDate?: string;
+  billingPeriod?: string | null;
 }
 
 // Helper function to convert snake_case to camelCase
@@ -301,6 +302,7 @@ export const invoicesAPI = {
       status: invoice.status || 'pending',
       due_date: invoice.dueDate,
       paid_date: invoice.paidDate,
+      billing_period: invoice.billingPeriod || null,
     };
 
     console.log('=== API create() - Datos a insertar en Supabase ===', invoiceData);
@@ -311,7 +313,12 @@ export const invoicesAPI = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505' && error.message.includes('uq_invoices_client_period')) {
+        throw new Error('Ese cliente ya tiene factura para ese mes');
+      }
+      throw error;
+    }
 
     return { invoice: toCamelCase(data) };
   },
@@ -361,4 +368,4 @@ export const initData = async () => {
 
   console.log('No initial data - use the UI to add clients and plans');
   return { message: 'Use the UI to add initial data' };
-};
+};

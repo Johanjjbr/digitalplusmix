@@ -56,18 +56,18 @@ serve(async (req) => {
       throw error;
     }
 
-    const result = data[0];
+    const result = Array.isArray(data) ? data[0] : data;
     
     console.log('Facturación completada:', result);
 
-    // Actualizar estado de clientes morosos
-    console.log('Actualizando estado de clientes morosos...');
-    const { data: delinquentData, error: delinquentError } = await supabase.rpc('update_delinquent_clients');
+    // Facturas vencidas + morosos / al día (la generación ya no duplica meses)
+    console.log('Actualizando vencidas, morosos y clientes al día...');
+    const { data: maintenance, error: maintenanceError } = await supabase.rpc('run_billing_maintenance');
 
-    if (delinquentError) {
-      console.error('Error actualizando morosos:', delinquentError);
+    if (maintenanceError) {
+      console.error('Error en mantenimiento:', maintenanceError);
     } else {
-      console.log('Clientes morosos actualizados:', delinquentData[0]);
+      console.log('Mantenimiento:', maintenance);
     }
 
     const billingResult: BillingResult = {
