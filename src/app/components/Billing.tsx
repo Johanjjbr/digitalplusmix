@@ -25,10 +25,8 @@ import {
 import {
   buildReminderMessage,
   invoiceMonthLabel,
-  normalizePhone,
   pendingAmount,
   sortByPeriod,
-  whatsappLink,
 } from '@/lib/whatsapp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
@@ -54,6 +52,7 @@ import {
 } from '@/app/components/ui/alert-dialog';
 import { InvoiceFormDialog } from '@/app/components/InvoiceFormDialog';
 import { MonthlyInvoiceDialog } from '@/app/components/MonthlyInvoiceDialog';
+import { sendInvoicesToWhatsApp } from '@/lib/send-whatsapp';
 
 interface Invoice {
   id: string;
@@ -74,6 +73,7 @@ interface Client {
   id: string;
   name: string;
   phone?: string;
+  documentNumber?: string;
   monthlyFee: number;
   planName?: string;
   status?: 'active' | 'suspended' | 'delinquent';
@@ -107,6 +107,7 @@ export function Billing() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [debtorFilter, setDebtorFilter] = useState<'overdue' | 'all'>('overdue');
   const [sentTo, setSentTo] = useState<Set<string>>(new Set());
+  const [sendingKey, setSendingKey] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -312,15 +313,26 @@ export function Billing() {
       }
     );
 
-  const handleSendWhatsApp = (d: Debtor) => {
-    const phone = normalizePhone(d.client?.phone, paymentSettings?.whatsappCountryCode);
-    if (!phone) {
-      toast.error(`${d.clientName} no tiene un teléfono válido. Edítalo en la ficha del cliente.`);
-      return;
-    }
-    window.open(whatsappLink(phone, messageFor(d)), '_blank', 'noopener');
-    setSentTo((prev) => new Set(prev).add(d.clientId));
+  // Un clic: PDF de la factura + chat de WhatsApp del cliente con el mensaje
+  const sendToWhatsApp = async (key: string, clientId: string, clientName: string, invs: Invoice[]) => {
+    if (sendingKey) return;
+    const client = clients.find((c) => c.id === clientId);
+    setSendingKey(key);
+    const ok = await sendInvoicesToWhatsApp({
+      invoices: invs,
+      clientName: client?.name || clientName,
+      phone: client?.phone,
+      client,
+    });
+    setSendingKey(null);
+    if (ok) setSentTo((prev) => new Set(prev).add(key));
   };
+
+  const handleSendWhatsApp = (d: Debtor) =>
+    sendToWhatsApp(`client:${d.clientId}`, d.clientId, d.clientName, d.invoices);
+
+  const handleSendInvoiceWhatsApp = (invoice: Invoice) =>
+    sendToWhatsApp(invoice.id, invoice.clientId, invoice.clientName, [invoice]);
 
   const handleCopyMessage = async (d: Debtor) => {
     try {
@@ -532,7 +544,30 @@ export function Billing() {
                           {invoice.status === 'paid' ? '-' : `$${pendingAmount(invoice).toFixed(2)}`}
                         </TableCell>
                         <TableCell>{getBadge(invoice.status)}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={
+                              sentTo.has(invoice.id)
+                                ? 'text-gray-400 hover:text-green-700 hover:bg-green-50'
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                            }
+                            title={sentTo.has(invoice.id) ? 'Ya enviada · volver a enviar por WhatsApp' : 'Enviar factura en PDF por WhatsApp'}
+                            disabled={sendingKey === invoice.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendInvoiceWhatsApp(invoice);
+                            }}
+                          >
+                            {sendingKey === invoice.id ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : sentTo.has(invoice.id) ? (
+                              <CheckCircle2 className="w-4 h-4" />
+                            ) : (
+                              <MessageCircle className="w-4 h-4" />
+                            )}
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -609,7 +644,6 @@ export function Billing() {
                     </TableRow>
                   ) : (
                     debtors.map((d) => {
-                      const phone = normalizePhone(d.client?.phone, paymentSettings?.whatsappCountryCode);
                       return (
                         <TableRow key={d.clientId}>
                           <TableCell
@@ -650,20 +684,22 @@ export function Billing() {
                             </Button>
                             <Button
                               size="sm"
-                              disabled={!phone}
+                              disabled={sendingKey === `client:${d.clientId}`}
                               className={
-                                sentTo.has(d.clientId)
+                                sentTo.has(`client:${d.clientId}`)
                                   ? 'bg-gray-400 hover:bg-gray-500'
                                   : 'bg-green-600 hover:bg-green-700'
                               }
                               onClick={() => handleSendWhatsApp(d)}
                             >
-                              {sentTo.has(d.clientId) ? (
+                              {sendingKey === `client:${d.clientId}` ? (
+                                <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                              ) : sentTo.has(`client:${d.clientId}`) ? (
                                 <CheckCircle2 className="w-4 h-4 mr-1" />
                               ) : (
                                 <MessageCircle className="w-4 h-4 mr-1" />
                               )}
-                              {sentTo.has(d.clientId) ? 'Enviado' : 'WhatsApp'}
+                              {sentTo.has(`client:${d.clientId}`) ? 'Enviado' : 'WhatsApp'}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -673,8 +709,8 @@ export function Billing() {
                 </TableBody>
               </Table>
               <p className="text-xs text-gray-500 mt-3">
-                El botón abre WhatsApp con el mensaje listo (nombre, meses pendientes, monto y datos de
-                Pago Móvil). Solo tienes que presionar enviar.
+                El botón WhatsApp descarga el PDF de cada factura pendiente y abre el chat del cliente con el
+                mensaje listo (meses, monto y datos de Pago Móvil). Adjunta el PDF con el clip 📎 y envía.
               </p>
             </CardContent>
           </Card>

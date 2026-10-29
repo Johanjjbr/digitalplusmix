@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { Printer, ArrowLeft, DollarSign, Calendar, FileText, CheckCircle, History, Trash2 } from 'lucide-react';
+import { Printer, ArrowLeft, DollarSign, Calendar, FileText, CheckCircle, History, Trash2, MessageCircle } from 'lucide-react';
 import { invoicesAPI, clientsAPI } from '@/lib/api';
 import { invoicesExtendedAPI, getLocalDateString } from '@/lib/api-extended';
 import { paymentsAPI } from '@/lib/api-tickets-zones';
@@ -42,6 +42,7 @@ import {
   TableRow,
 } from '@/app/components/ui/table';
 import { getPrintableInvoiceHTML } from './InvoicePrintTemplate';
+import { sendInvoicesToWhatsApp } from '@/lib/send-whatsapp';
 
 export function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -57,6 +58,7 @@ export function InvoiceDetail() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [paymentPreview, setPaymentPreview] = useState<any>(null);
   const [clientData, setClientData] = useState<any>(null);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
   useEffect(() => {
     loadInvoice();
@@ -288,6 +290,24 @@ const html = getPrintableInvoiceHTML(invoice, clientData);
           </div>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={async () => {
+              if (sendingWhatsApp) return;
+              setSendingWhatsApp(true);
+              await sendInvoicesToWhatsApp({
+                invoices: [invoice],
+                clientName: clientData?.name || invoice.clientName,
+                phone: clientData?.phone,
+                client: clientData,
+              });
+              setSendingWhatsApp(false);
+            }}
+            disabled={sendingWhatsApp}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <MessageCircle className="w-4 h-4 mr-2" />
+            {sendingWhatsApp ? 'Generando PDF...' : 'WhatsApp'}
+          </Button>
           <Button onClick={handleSendDigitalInvoice} variant="outline">
             <Printer className="w-4 h-4 mr-2" />
             Enviar Digital
@@ -578,4 +598,4 @@ const html = getPrintableInvoiceHTML(invoice, clientData);
       </AlertDialog>
     </div>
   );
-}
+}
